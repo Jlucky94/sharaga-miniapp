@@ -1,0 +1,92 @@
+name: Deploy (Docker)
+
+on:
+  push:
+    branches: ["master"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-deploy:
+    environment: sharaga-miniapp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push API
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: ghcr.io/jlucky94/sharaga-miniapp-api:latest
+
+      - name: Build & push WEB
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: ghcr.io/jlucky94/sharaga-miniapp-web:latest
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy on VPS
+        env:
+          OWNER: jlucky94
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+        run: |
+          if [ -z "${TELEGRAM_BOT_TOKEN}" ] || [ -z "${JWT_SECRET}" ]; then
+            echo "::error::Missing required secrets TELEGRAM_BOT_TOKEN and/or JWT_SECRET in GitHub environment"
+            exit 1
+          fi
+
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "OWNER='${OWNER}' TELEGRAM_BOT_TOKEN='${TELEGRAM_BOT_TOKEN}' JWT_SECRET='${JWT_SECRET}' JWT_EXPIRES_IN='${JWT_EXPIRES_IN}' bash -s" <<'EOF'
+          set -e
+
+          mkdir -p /var/www/sharaga-miniapp
+          cd /var/www/sharaga-miniapp
+
+          cat > docker-compose.yml <<YAML
+          services:
+            api:
+              image: ghcr.io/$OWNER/sharaga-miniapp-api:latest
+              environment:
+                - PORT=3001
+                - TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
+                - JWT_SECRET=$JWT_SECRET
+                - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-1d}
+              restart: unless-stopped
+
+            web:
+              image: ghcr.io/$OWNER/sharaga-miniapp-web:latest
+              ports:
+                - "8090:80"
+              depends_on:
+                - api
+              restart: unless-stopped
+          YAML
+
+          docker compose pull
+          docker compose up -d
+          docker compose ps
+          docker compose logs api --tail=100 || true
+          curl -f http://localhost:8090
+          docker image prune -f
+          EOF

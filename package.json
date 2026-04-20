@@ -1,0 +1,16 @@
+{
+  "name": "sharaga-miniapp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@10.13.1",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @sharaga/api --filter @sharaga/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "check": "pnpm -r check"
+  }
+}

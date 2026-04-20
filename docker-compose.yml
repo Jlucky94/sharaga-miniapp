@@ -1,0 +1,17 @@
+services:
+  api:
+    image: ghcr.io/jlucky94/sharaga-miniapp-api:latest
+    environment:
+      - PORT=3001
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-1d}
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/jlucky94/sharaga-miniapp-web:latest
+    ports:
+      - "127.0.0.1:8090:80"
+    depends_on:
+      - api
+    restart: unless-stopped
