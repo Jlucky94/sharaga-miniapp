@@ -1,0 +1,16 @@
+[USE WITH: prompts/_system/PROLOG_CHECK.txt]
+
+CHECK-C3 - Cooperative Event Control
+
+Verify BUILD-P0, BUILD-P1, BUILD-P2, and BUILD-P3 cumulatively.
+
+Confirm or refute:
+- earlier user paths are not broken;
+- party can be created and assembled;
+- Exam really depends on role composition;
+- both successful and partially unsuccessful paths exist;
+- rewards and result records are not duplicated;
+- event result appears in the shared social space.
+
+Fix only what prevents the cooperative event contract from being honestly closed.
+Do not add seasons, PvP, or new content.

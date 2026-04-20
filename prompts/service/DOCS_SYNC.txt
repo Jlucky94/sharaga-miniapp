@@ -1,0 +1,12 @@
+DOCS-SYNC
+
+Do not change product or code.
+
+Check that project documents reflect the actual current repository state:
+- docs/status/CURRENT_PHASE.md
+- docs/architecture/ARCHITECTURE.md
+- docs/runbooks/COMMANDS.md
+- docs/decisions/DECISIONS.md
+
+Update only places where code and docs differ in substance.
+Do not rewrite documents for style.

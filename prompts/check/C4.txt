@@ -1,0 +1,18 @@
+[USE WITH: prompts/_system/PROLOG_CHECK.txt]
+
+CHECK-C4 - Alpha Gate
+
+Verify the full path BUILD-P0 through BUILD-P4.
+
+Confirm or refute:
+- project starts from scratch;
+- new user receives first value;
+- social contribution works across two users;
+- cooperative event is playable;
+- basic notifications do not break the main path;
+- seed and staging are documented and reproducible;
+- no known critical blocker remains for the first external test.
+
+If there are gaps, fix only what is critical for alpha-candidate readiness.
+Do not expand scope.
+Stop after confirmation.

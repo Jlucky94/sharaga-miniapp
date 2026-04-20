@@ -23,6 +23,8 @@ Do not add systems outside the current phase.
 6. relevant local `AGENTS.md` files in touched directories
 7. `docs/decisions/DECISIONS.md` when changing architecture, stack, storage, or contracts
 
+Do not read, scan, or index `prompts/` during normal work. That directory is an execution prompt library. Open a file inside it only when the user gives an explicit prompt path or directly asks to work with that directory.
+
 ## Working loop
 
 1. Restate the current phase goal and boundaries in your own words.

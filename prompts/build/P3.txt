@@ -1,0 +1,23 @@
+[USE WITH: prompts/_system/PROLOG_BUILD.txt]
+
+BUILD-P3 - Cooperative Exam
+
+Goal:
+Create a small cooperative event that requires a party and where role composition meaningfully affects the outcome.
+
+Success criteria:
+- player can create or assemble a party;
+- party can enter the Exam event;
+- participant roles affect probability and quality of result;
+- successful and partially unsuccessful outcomes differ;
+- event result is written into the social space of the game.
+
+Do NOT:
+- add PvP;
+- add deep season meta;
+- add battle pass;
+- add marketplace;
+- add unrelated independent modes.
+
+Focus:
+Cooperation, readable role dependency, and weekly culmination.

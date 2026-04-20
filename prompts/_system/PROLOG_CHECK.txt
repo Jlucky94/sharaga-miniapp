@@ -1,0 +1,12 @@
+Rules:
+
+- Do NOT add new features.
+- Do NOT polish the interface.
+- Do NOT refactor for beauty.
+- Do NOT expand scope.
+- Do NOT change architecture unless required to satisfy an already promised result.
+
+Your job:
+- Verify phase contracts.
+- Fix only what is missing from those contracts.
+- Stop immediately after validation passes.

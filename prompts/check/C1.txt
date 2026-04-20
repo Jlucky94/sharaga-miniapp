@@ -1,0 +1,15 @@
+[USE WITH: prompts/_system/PROLOG_CHECK.txt]
+
+CHECK-C1 - First Value Control
+
+Verify BUILD-P0 and BUILD-P1 cumulatively.
+
+Confirm or refute:
+- new user can log in through Telegram;
+- role is selected meaningfully and saved;
+- at least one action gives first progress;
+- progress survives reload and repeated login;
+- first user path does not require manual explanations.
+
+If something is missing, fix only that.
+Do not add social world, parties, or Exam.

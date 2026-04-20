@@ -1,0 +1,15 @@
+[USE WITH: prompts/_system/PROLOG_CHECK.txt]
+
+CHECK-C0 - Project OS Control
+
+Verify BUILD-P0 only.
+
+Confirm or refute:
+- project starts from scratch by documented scenario;
+- mandatory verification commands exist and actually work;
+- monorepo structure is readable;
+- project documents are aligned;
+- empty web shell and API shell launch.
+
+If you find mismatches, fix only issues that block the shell from running.
+Do not move to game capabilities.

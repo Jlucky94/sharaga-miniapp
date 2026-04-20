@@ -1,0 +1,16 @@
+[USE WITH: prompts/_system/PROLOG_CHECK.txt]
+
+CHECK-C2 - Async Social Loop Control
+
+Verify BUILD-P0, BUILD-P1, and BUILD-P2 cumulatively.
+
+Confirm or refute:
+- first path for a new player still works;
+- player A can contribute to a shared project;
+- player B can benefit from it;
+- player A receives and sees a social signal;
+- feed or another social surface reflects these events;
+- state is consistent after repeated requests and reload.
+
+If you find a problem, fix only what blocks the promised social loop.
+Do not start Exam and do not add new modes.

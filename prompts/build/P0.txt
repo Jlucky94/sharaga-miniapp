@@ -1,0 +1,23 @@
+[USE WITH: prompts/_system/PROLOG_BUILD.txt]
+
+BUILD-P0 - Project Operating System
+
+Goal:
+Create a working project skeleton that a new developer or AI agent can launch without oral explanations.
+
+Success criteria:
+- repository runs locally from documented steps;
+- mandatory verification commands exist;
+- empty but working Telegram Mini App shell exists;
+- API shell works;
+- project documents allow the next phase to start without manual explanation;
+- health check exists;
+- repository structure is clear.
+
+Do NOT:
+- implement gameplay;
+- add social features;
+- add parties or events;
+- polish the interface.
+
+Finish only when a clean setup can be launched by the documented runbook.

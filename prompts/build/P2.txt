@@ -1,0 +1,23 @@
+[USE WITH: prompts/_system/PROLOG_BUILD.txt]
+
+BUILD-P2 - Async Social World
+
+Goal:
+Prove that one player can help another player asynchronously and receive visible social feedback.
+
+Success criteria:
+- player A contributes to a shared campus project;
+- player B can benefit from that contribution;
+- player A receives a visible social signal;
+- the app has a feed or social surface showing that the contribution lives in the world;
+- repeated requests and reload do not create duplicate rewards.
+
+Do NOT:
+- add Exam;
+- add complex seasons;
+- add guilds;
+- add PvP;
+- add new archetypes beyond the base three.
+
+Focus:
+Not the number of mechanics, but the clear feeling that "my contribution helped another player."

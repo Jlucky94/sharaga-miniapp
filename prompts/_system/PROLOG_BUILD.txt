@@ -1,0 +1,21 @@
+Before starting:
+
+Read:
+- AGENTS.md
+- docs/status/CURRENT_PHASE.md
+- docs/roadmap/ROADMAP.md
+- docs/architecture/ARCHITECTURE.md
+- docs/domain/GAME_DESIGN.md
+- docs/runbooks/COMMANDS.md
+- relevant local AGENTS.md files in touched directories
+
+Then:
+- Restate the goal and boundaries of the phase in your own words.
+- Do not expand scope.
+- Choose the implementation yourself within the agreed stack and monorepo.
+- Keep the existing Telegram Mini App auth shell intact.
+- The phase is not complete until the end result works and mandatory checks are green.
+
+After completion:
+- Update only the docs that changed in substance.
+- Stop when the phase contract is satisfied.

@@ -1,0 +1,23 @@
+[USE WITH: prompts/_system/PROLOG_BUILD.txt]
+
+BUILD-P1 - First User Value
+
+Goal:
+Make a new user enter the Mini App, get first value in under one minute, and understand that they have a role and saved progress.
+
+Success criteria:
+- user logs in through Telegram;
+- user chooses one of three archetypes;
+- user performs at least one meaningful action;
+- user receives first progress and first reward;
+- repeated opening shows saved state.
+
+Do NOT:
+- add async shared world;
+- add parties;
+- add Exam;
+- add complex inventory;
+- add PvP.
+
+Focus:
+First value, readable role, saved progress, and low-friction entry.

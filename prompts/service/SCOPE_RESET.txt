@@ -1,0 +1,13 @@
+SCOPE-RESET
+
+You went beyond the current phase scope.
+
+Stop all improvements that are not related to the active contract.
+
+First:
+- list what was done beyond scope.
+
+Then:
+- return to the current phase;
+- close only the required result;
+- do not start the next phase.

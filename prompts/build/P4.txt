@@ -1,0 +1,24 @@
+[USE WITH: prompts/_system/PROLOG_BUILD.txt]
+
+BUILD-P4 - Alpha Candidate
+
+Goal:
+Bring the project to a state where it can be given to first live users without constant manual developer support.
+
+Success criteria:
+- new user can complete the path from entry to first value;
+- social world does not feel empty;
+- cooperative event is playable;
+- critical errors are handled;
+- basic notifications exist after the first value moment;
+- deploy, seed, and environment recovery are documented.
+
+Do NOT:
+- add new game systems;
+- add new currencies;
+- add monetization;
+- add deep cosmetics;
+- expand lore for its own sake.
+
+Focus:
+Reliability, reproducibility, and readiness for the first external test.
