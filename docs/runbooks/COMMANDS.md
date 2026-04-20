@@ -94,13 +94,32 @@ pnpm build
 
 ## Manual smoke test
 
-1. Create `apps/api/.env.local` or export required API env vars.
-2. Generate valid dev Telegram init data.
-3. Start `pnpm dev`.
+1. Export required API env vars in the shell that starts the API:
+
+```powershell
+$env:TELEGRAM_BOT_TOKEN="123:token"
+$env:JWT_SECRET="dev-jwt-secret"
+```
+
+2. Generate valid dev Telegram init data:
+
+```powershell
+$initData = pnpm --filter @sharaga/web gen:init-data
+```
+
+When scripting requests, use the generated line that starts with `auth_date=`.
+
+3. Start `pnpm dev` from the same shell. Or start API and web separately:
+
+```powershell
+pnpm --filter @sharaga/api dev
+pnpm --filter @sharaga/web dev
+```
+
 4. Open the Vite URL.
 5. Confirm the web app calls `/api/v1/auth/telegram`.
 6. Confirm `/api/v1/me` succeeds with the returned JWT.
-7. Confirm `/api/v1/health` returns `{ "status": "ok" }`.
+7. Confirm `http://127.0.0.1:3001/api/v1/health` returns `{ "status": "ok" }`.
 
 ## Future runbooks to add
 

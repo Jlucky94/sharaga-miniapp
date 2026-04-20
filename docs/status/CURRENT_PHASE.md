@@ -73,6 +73,18 @@ A new contributor can open the repository and understand:
 - After `pnpm` was installed in PATH, `pnpm install`, `pnpm check`, `pnpm test`, and `pnpm build` passed.
 - Manual smoke passed with local `TELEGRAM_BOT_TOKEN` and `JWT_SECRET`: `/api/v1/health` returned `ok`, `/api/v1/auth/telegram` accepted generated dev initData, `/api/v1/me` accepted the returned JWT, and the Vite `/api` proxy forwarded auth successfully.
 
+2026-04-21 CHECK-C0:
+
+- Node `v25.9.0` and `pnpm 10.13.1` were available.
+- Root and app package scripts matched `docs/runbooks/COMMANDS.md` and local agent instructions.
+- `pnpm install` passed.
+- `pnpm check` passed.
+- `pnpm test` passed.
+- `pnpm build` passed.
+- Manual smoke passed with local `TELEGRAM_BOT_TOKEN` and `JWT_SECRET`: generated dev initData was accepted by `/api/v1/auth/telegram`, `/api/v1/me` accepted the returned JWT, `http://127.0.0.1:3001/api/v1/health` returned `ok`, and the Vite `/api` proxy forwarded auth through `http://127.0.0.1:3000/api/v1/auth/telegram`.
+- `docs/runbooks/COMMANDS.md` was clarified to export env vars and use `127.0.0.1` for the direct API smoke URL on Windows, where `localhost` may resolve to IPv6 `::1`.
+- No BUILD-P1 game capabilities were started.
+
 ## Next phase
 
 BUILD-P1 - First value for a new player.
