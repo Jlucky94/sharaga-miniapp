@@ -12,7 +12,7 @@ prompts/
     README.txt
     PROLOG_BUILD.txt
     PROLOG_CHECK.txt
-  build/
+  phases/
     P0.txt
     P1.txt
     P2.txt
@@ -44,11 +44,11 @@ prompts/
 | `prompts/_system/README.txt` | Guardrails for the prompt library |
 | `prompts/_system/PROLOG_BUILD.txt` | Shared prelude for build phases |
 | `prompts/_system/PROLOG_CHECK.txt` | Shared prelude for control checks |
-| `prompts/build/P0.txt` | BUILD-P0 project operating system |
-| `prompts/build/P1.txt` | BUILD-P1 first user value |
-| `prompts/build/P2.txt` | BUILD-P2 async social world |
-| `prompts/build/P3.txt` | BUILD-P3 cooperative Exam |
-| `prompts/build/P4.txt` | BUILD-P4 alpha candidate |
+| `prompts/phases/P0.txt` | BUILD-P0 project operating system |
+| `prompts/phases/P1.txt` | BUILD-P1 first user value |
+| `prompts/phases/P2.txt` | BUILD-P2 async social world |
+| `prompts/phases/P3.txt` | BUILD-P3 cooperative Exam |
+| `prompts/phases/P4.txt` | BUILD-P4 alpha candidate |
 | `prompts/check/C0.txt` | CHECK-C0 project OS control |
 | `prompts/check/C1.txt` | CHECK-C1 first value control |
 | `prompts/check/C2.txt` | CHECK-C2 async social loop control |
