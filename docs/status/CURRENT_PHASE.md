@@ -61,6 +61,18 @@ A new contributor can open the repository and understand:
 - TanStack Query, Prisma, PostgreSQL/Neon, Playwright, and structured analytics are target stack items for later phases, not current dependencies.
 - No e2e test suite exists yet.
 
+## Last verification
+
+2026-04-21:
+
+- `pnpm` was not available in PATH, so the documented fallback `npx pnpm@10.13.1` was used.
+- `npx pnpm@10.13.1 install` passed.
+- `npx pnpm@10.13.1 check` passed.
+- `npx pnpm@10.13.1 test` passed.
+- `npx pnpm@10.13.1 build` passed.
+- After `pnpm` was installed in PATH, `pnpm install`, `pnpm check`, `pnpm test`, and `pnpm build` passed.
+- Manual smoke passed with local `TELEGRAM_BOT_TOKEN` and `JWT_SECRET`: `/api/v1/health` returned `ok`, `/api/v1/auth/telegram` accepted generated dev initData, `/api/v1/me` accepted the returned JWT, and the Vite `/api` proxy forwarded auth successfully.
+
 ## Next phase
 
 BUILD-P1 - First value for a new player.
