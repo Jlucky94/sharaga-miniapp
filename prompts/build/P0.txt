@@ -14,6 +14,7 @@ Success criteria:
 - health check exists;
 - repository structure is clear.
 
+
 Do NOT:
 - implement gameplay;
 - add social features;
