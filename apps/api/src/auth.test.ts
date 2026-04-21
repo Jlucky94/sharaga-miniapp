@@ -245,6 +245,73 @@ test('profile action grants expected rewards and writes one event', async () => 
   await app.close();
 });
 
+test('full first-value loop survives profile reload and repeated login', async () => {
+  const { app } = createTestApp();
+  const firstAuth = await authenticate(app);
+
+  const selectResponse = await app.inject({
+    method: 'POST',
+    url: '/api/v1/class/select',
+    headers: {
+      Authorization: `Bearer ${firstAuth.accessToken}`
+    },
+    payload: { archetype: 'botan' }
+  });
+
+  assert.equal(selectResponse.statusCode, 200);
+  assert.equal(selectResponse.json().profile.archetype, 'botan');
+
+  const actionResponse = await app.inject({
+    method: 'POST',
+    url: '/api/v1/actions/perform',
+    headers: {
+      Authorization: `Bearer ${firstAuth.accessToken}`
+    },
+    payload: { actionId: 'study_notes' }
+  });
+
+  assert.equal(actionResponse.statusCode, 200);
+  assert.equal(actionResponse.json().profile.profileXp, 10);
+  assert.equal(actionResponse.json().profile.archetypeXp, 6);
+  assert.equal(actionResponse.json().profile.softCurrency, 1);
+  assert.equal(actionResponse.json().profile.energy, 2);
+
+  const reloadedProfile = await app.inject({
+    method: 'GET',
+    url: '/api/v1/profile',
+    headers: {
+      Authorization: `Bearer ${firstAuth.accessToken}`
+    }
+  });
+
+  assert.equal(reloadedProfile.statusCode, 200);
+  assert.equal(reloadedProfile.json().profile.archetype, 'botan');
+  assert.equal(reloadedProfile.json().profile.profileXp, 10);
+  assert.equal(reloadedProfile.json().profile.archetypeXp, 6);
+  assert.equal(reloadedProfile.json().profile.softCurrency, 1);
+  assert.equal(reloadedProfile.json().profile.energy, 2);
+
+  const secondAuth = await authenticate(app);
+  assert.equal(secondAuth.user.id, firstAuth.user.id);
+
+  const reloginProfile = await app.inject({
+    method: 'GET',
+    url: '/api/v1/profile',
+    headers: {
+      Authorization: `Bearer ${secondAuth.accessToken}`
+    }
+  });
+
+  assert.equal(reloginProfile.statusCode, 200);
+  assert.equal(reloginProfile.json().profile.archetype, 'botan');
+  assert.equal(reloginProfile.json().profile.profileXp, 10);
+  assert.equal(reloginProfile.json().profile.archetypeXp, 6);
+  assert.equal(reloginProfile.json().profile.softCurrency, 1);
+  assert.equal(reloginProfile.json().profile.energy, 2);
+
+  await app.close();
+});
+
 test('neutral action gives neutral archetype progress', async () => {
   const { app } = createTestApp();
   const auth = await authenticate(app);

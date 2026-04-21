@@ -2,35 +2,31 @@
 
 ## Active phase
 
-Phase: BUILD-P1 - First value for a new player
+Phase: CHECK-C1 - First Value Control
 
 ## Goal
 
-Make a new user enter the Mini App, get first value in under one minute, understand their role, and see that progress still exists after reopening.
+Verify cumulatively that BUILD-P0 and BUILD-P1 already deliver the promised first player loop without manual explanations.
 
-This phase builds on top of the existing Telegram Mini App shell. Server-side Telegram `initData` validation stays intact, while the first personal game loop becomes real and persistent.
+This control phase confirms the Telegram Mini App shell, persistent profile flow, archetype choice, first meaningful action, and saved progress honestly work together before any BUILD-P2 work starts.
 
 ## In scope
 
-- Keep the existing Telegram auth/JWT shell and trust boundary.
-- Create or load a persistent user/profile on auth.
-- Add archetype selection for `botan`, `sportsman`, and `partygoer`.
-- Add one energy resource and one soft currency.
-- Add the first 4 short actions with readable rewards.
-- Add profile level, archetype progress, and a basic home screen.
-- Create `packages/contracts` for shared product-facing API contracts.
-- Add Prisma/PostgreSQL persistence and migration files for BUILD-P1 state.
+- Verify Telegram auth still works through server-side `initData` validation.
+- Verify a new user profile is created or loaded persistently on auth.
+- Verify archetype choice is meaningful, obvious, and saved.
+- Verify at least one short action gives readable first progress.
+- Verify progress survives reload and repeated login.
+- Fix only missing pieces required to satisfy BUILD-P0 and BUILD-P1 contracts.
 
 ## Out of scope
 
 - Async shared world.
 - Parties.
 - Exam event.
-- Complex inventory.
-- PvP.
-- Daily/weekly quest systems.
-- TanStack Query.
-- `packages/game-core`.
+- New currencies, inventory, or PvP.
+- Daily/weekly systems beyond what BUILD-P1 already promised.
+- New platform layers or phase-advancing abstractions.
 
 ## Required user-visible result
 
@@ -41,6 +37,7 @@ A new player can:
 - perform at least one meaningful action;
 - see profile XP, archetype XP, energy, and soft currency update;
 - reopen the Mini App and see the same saved profile state.
+- follow the first path without needing manual explanation from the team.
 
 ## Mandatory checks for this phase
 
@@ -54,34 +51,31 @@ A new player can:
 
 ## Done when
 
-- BUILD-P1 endpoints and frontend flow work without bypassing Telegram server validation.
-- Saved progress is backed by persistent storage rather than in-memory API state.
-- `packages/contracts` is the shared source for BUILD-P1 enums and DTOs.
-- Docs and commands reflect the new DB/runtime requirements.
-- Known blockers are written below instead of hidden in chat history.
+- BUILD-P0 and BUILD-P1 promises are confirmed together instead of assumed from partial tests.
+- First login, archetype select, first action, reload, and repeated login all work without bypassing Telegram server validation.
+- Any fixes made stay inside BUILD-P1 scope and do not start BUILD-P2 systems.
+- Docs reflect the actual verified phase state and any known blocker is written below instead of hidden in chat history.
 
 ## Known gaps
 
 - `apps/web` still uses a placeholder `node --test` script; no UI automation exists yet.
-- `packages/game-core`, async world systems, and party/event mechanics are intentionally not started in BUILD-P1.
+- CHECK-C1 still relies on command-level/API smoke plus manual UX review; browser automation is still a later-phase concern.
 
 ## Last verification
 
-2026-04-21 BUILD-P1:
+2026-04-21 CHECK-C1:
 
 - `pnpm install` passed.
 - `pnpm check` passed.
 - `pnpm test` passed.
 - `pnpm build` passed.
-- `packages/contracts` now contains BUILD-P1 action/archetype enums and API schemas.
-- `apps/api` now includes Prisma schema, checked-in migration, persistent profile/auth flow, and `/api/v1/profile`, `/api/v1/class/select`, `/api/v1/actions/perform`.
-- `apps/web` now boots into archetype selection or the saved home screen and shows readable action rewards.
-- After Docker was installed, `docker compose up -d db` passed and local PostgreSQL accepted connections on `127.0.0.1:5432`.
-- `pnpm --filter @sharaga/api prisma:migrate:deploy` passed against the local PostgreSQL instance.
-- Manual smoke passed with local dev env: `/api/v1/health` returned `ok`, auth worked both directly against `http://127.0.0.1:3001/api/v1/auth/telegram` and through the Vite proxy at `http://localhost:3000/api/v1/auth/telegram`, `/api/v1/profile` showed a fresh player with no archetype, `/api/v1/class/select` saved `botan`, `/api/v1/actions/perform` granted readable rewards, and repeated auth plus `/api/v1/profile` returned the same persisted state.
+- `pnpm --filter @sharaga/api prisma:migrate:deploy` passed against local PostgreSQL at `127.0.0.1:5432`.
+- Real HTTP smoke passed against the built API with Prisma/PostgreSQL persistence: `/api/v1/health` returned `ok`, a fresh Telegram dev user authenticated successfully, `/api/v1/profile` started with no archetype, `/api/v1/class/select` saved `botan`, `/api/v1/actions/perform` granted readable first rewards, and both reload plus repeated `/api/v1/auth/telegram` returned the same persisted profile state.
+- API regression coverage now includes a cumulative first-value loop test for auth -> role select -> action -> reload -> repeated login.
+- No CHECK-C1 blocker was found that required scope growth beyond BUILD-P1.
 
 ## Next phase
 
-CHECK-C1 - First Value Control
+BUILD-P2 - Async social world
 
-Run only after BUILD-P1 manual smoke is completed in an environment with PostgreSQL access.
+Start only with a direct request after accepting CHECK-C1 as complete.
