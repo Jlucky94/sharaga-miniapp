@@ -65,3 +65,35 @@ Consequences:
 
 - BUILD-P1 may keep simple logic in API while it is tiny;
 - promote logic to packages when reuse or testing pressure appears.
+
+## 2026-04-21 - Persist BUILD-P1 player state with PostgreSQL and Prisma
+
+Decision: BUILD-P1 stores user/profile/action state in PostgreSQL through Prisma instead of keeping player state in API memory.
+
+Rationale:
+
+- the phase contract requires saved progress after reload and repeated login;
+- `apps/api` local instructions explicitly forbid promising persistence through in-memory state;
+- Prisma migrations give an explicit schema/update path instead of hidden storage changes.
+
+Consequences:
+
+- `DATABASE_URL` is required for API runtime;
+- `apps/api/prisma` owns the BUILD-P1 schema and migration files;
+- local and deployment runbooks must include DB setup and migration steps.
+
+## 2026-04-21 - Create packages/contracts for BUILD-P1 shared API schemas
+
+Decision: introduce `packages/contracts` in BUILD-P1 as the shared source for archetypes, actions, and profile/action DTOs.
+
+Rationale:
+
+- BUILD-P1 adds real product-facing API contracts used by both API and web;
+- shared schemas reduce drift between backend and frontend during the first product slice;
+- the package now has a concrete job, so it is no longer empty abstraction theater.
+
+Consequences:
+
+- `apps/api` and `apps/web` both depend on `@sharaga/contracts`;
+- Docker build context must include `packages/`;
+- `packages/game-core` remains postponed until formulas are reused enough to justify extraction.

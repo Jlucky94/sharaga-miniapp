@@ -13,5 +13,7 @@ yarn-error.log*
 dist
 coverage
 pnpm-debug.log*
+.DS_Store
+.codex-*.log
 
 .vscode/*

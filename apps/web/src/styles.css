@@ -1,8 +1,11 @@
 :root {
-  color: #18211f;
-  background: #f5f7f4;
+  color: #1d1f24;
+  background:
+    radial-gradient(circle at top left, rgba(255, 198, 86, 0.22), transparent 30%),
+    radial-gradient(circle at top right, rgba(29, 103, 135, 0.2), transparent 28%),
+    linear-gradient(180deg, #fbf4e8 0%, #eef2f0 100%);
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    "Trebuchet MS", "Avenir Next", "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -13,9 +16,9 @@
 }
 
 body {
+  margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  margin: 0;
 }
 
 button,
@@ -25,73 +28,269 @@ select {
   font: inherit;
 }
 
+button {
+  cursor: pointer;
+}
+
 .app-shell {
   min-height: 100vh;
   padding: calc(20px + env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom));
-  background:
-    linear-gradient(135deg, rgba(41, 115, 115, 0.14), transparent 42%),
-    linear-gradient(315deg, rgba(137, 37, 65, 0.12), transparent 38%),
-    #f5f7f4;
 }
 
-.session-panel,
-.notes-panel {
-  width: min(100%, 560px);
+.hero-panel,
+.card-grid,
+.stats-grid,
+.action-header,
+.action-grid,
+.result-panel,
+.inline-error {
+  width: min(100%, 920px);
   margin: 0 auto;
 }
 
-.session-panel {
-  min-height: 62vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+.hero-panel {
+  padding: 24px;
+  border: 1px solid rgba(29, 31, 36, 0.08);
+  border-radius: 28px;
+  background: rgba(255, 251, 245, 0.88);
+  box-shadow: 0 18px 45px rgba(35, 44, 58, 0.08);
 }
 
-.session-chip {
-  width: fit-content;
-  min-height: 34px;
+.hero-panel--warning {
+  background: rgba(255, 247, 226, 0.9);
+}
+
+.hero-panel--error {
+  background: rgba(255, 240, 237, 0.92);
+}
+
+.hero-panel h1,
+.card h2,
+.action-card h3,
+.action-header h2,
+.result-panel h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: -0.02em;
+}
+
+.hero-panel h1 {
+  margin-top: 10px;
+  font-size: clamp(2.4rem, 9vw, 4.8rem);
+  line-height: 0.94;
+}
+
+.hero-panel p,
+.card p,
+.action-card p,
+.result-panel p,
+.inline-error,
+.action-header p {
+  margin: 0;
+  color: #505862;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.hero-panel p {
+  max-width: 42rem;
+  margin-top: 14px;
+}
+
+.eyebrow,
+.card-tag {
   display: inline-flex;
   align-items: center;
-  border: 1px solid rgba(24, 33, 31, 0.18);
-  border-radius: 8px;
-  padding: 6px 10px;
-  color: #297373;
-  background: rgba(255, 255, 255, 0.62);
-  font-size: 0.8rem;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(29, 103, 135, 0.1);
+  color: #1d6787;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0;
   text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
-h1,
-h2,
-p {
-  overflow-wrap: anywhere;
+.card-grid,
+.stats-grid,
+.action-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
 }
 
-h1 {
-  margin: 18px 0 12px;
-  color: #18211f;
-  font-size: clamp(2.4rem, 12vw, 4.8rem);
-  line-height: 0.95;
-  letter-spacing: 0;
+.card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
-h2 {
-  margin: 0 0 8px;
-  font-size: 1.15rem;
-  letter-spacing: 0;
+.card,
+.stat-card,
+.action-card,
+.result-panel {
+  border: 1px solid rgba(29, 31, 36, 0.08);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 32px rgba(35, 44, 58, 0.06);
 }
 
-p {
-  max-width: 38rem;
-  margin: 0;
-  color: #4c5a55;
-  font-size: 1rem;
-  line-height: 1.55;
+.card,
+.action-card,
+.result-panel {
+  padding: 20px;
 }
 
-.notes-panel {
-  border-top: 1px solid rgba(24, 33, 31, 0.16);
-  padding-top: 18px;
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card h2,
+.action-card h3,
+.result-panel h2,
+.action-header h2 {
+  font-size: 1.4rem;
+  line-height: 1.1;
+}
+
+.stats-grid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.stat-card {
+  padding: 16px;
+}
+
+.stat-card span {
+  display: block;
+  color: #63707d;
+  font-size: 0.86rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.stat-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.45rem;
+  line-height: 1.1;
+}
+
+.action-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.action-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.action-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.action-card--recommended {
+  background:
+    linear-gradient(180deg, rgba(255, 210, 112, 0.18), rgba(255, 255, 255, 0.92)),
+    rgba(255, 255, 255, 0.88);
+  border-color: rgba(197, 128, 27, 0.22);
+}
+
+.action-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 50px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 0;
+  font-weight: 700;
+  transition:
+    transform 120ms ease,
+    opacity 120ms ease,
+    background-color 120ms ease;
+}
+
+.primary-button {
+  color: #fff9f0;
+  background: linear-gradient(135deg, #1d6787, #0d3f55);
+}
+
+.secondary-button {
+  color: #1d1f24;
+  background: rgba(29, 103, 135, 0.12);
+}
+
+.primary-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.inline-error {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(191, 63, 46, 0.08);
+  color: #8f2f22;
+}
+
+.result-panel {
+  margin-top: 20px;
+}
+
+.result-panel p {
+  margin-top: 12px;
+}
+
+.reward-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.reward-strip span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(197, 128, 27, 0.11);
+  color: #7d5314;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding-inline: 14px;
+  }
+
+  .hero-panel,
+  .card,
+  .action-card,
+  .result-panel {
+    border-radius: 22px;
+  }
+
+  .hero-panel h1 {
+    font-size: clamp(2rem, 13vw, 3.4rem);
+  }
 }

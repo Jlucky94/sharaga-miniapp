@@ -7,6 +7,8 @@
   apps/
     api/                 # Fastify API, Telegram initData validation, internal JWT
     web/                 # React + TypeScript + Vite Telegram Mini App client
+  packages/
+    contracts/           # BUILD-P1 shared Zod schemas, DTOs, action metadata
   docs/
     ai/
     architecture/
@@ -50,14 +52,20 @@ Create `packages/contracts` and `packages/game-core` when BUILD-P1/P2 needs real
 | Monorepo | pnpm workspaces | Current |
 | Frontend | React + TypeScript + Vite | Current |
 | Client server state | TanStack Query | Target |
-| API | REST/JSON + shared Zod contracts | REST current, Zod target |
+| API | REST/JSON + shared Zod contracts | Current |
 | Backend | Node.js + TypeScript + Fastify | Current |
 | Domain layer | `packages/game-core` | Target |
-| Contracts layer | `packages/contracts` | Target |
-| Database | PostgreSQL | Target |
-| ORM | Prisma ORM | Target |
+| Contracts layer | `packages/contracts` | Current |
+| Database | PostgreSQL | Current for BUILD-P1 |
+| ORM | Prisma ORM | Current for BUILD-P1 |
 | Managed DB | Neon | Target |
 | Tests | Node test/Vitest + Playwright | Node test current, Vitest/Playwright target |
+
+## BUILD-P1 additions
+
+- `packages/contracts` now holds shared enums, DTO schemas, and action catalog metadata for the first player loop.
+- `apps/api/prisma` owns the BUILD-P1 persistence schema and checked-in migration.
+- `packages/game-core` is still intentionally absent because BUILD-P1 formulas are small and only used inside the API.
 
 ## Existing auth flow
 

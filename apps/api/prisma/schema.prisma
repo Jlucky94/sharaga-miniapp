@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Archetype {
+  botan
+  sportsman
+  partygoer
+}
+
+enum ProfileEventType {
+  profile_created
+  archetype_selected
+  action_performed
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  telegramId   BigInt    @unique
+  firstName    String
+  lastName     String?
+  username     String?
+  languageCode String?
+  photoUrl     String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  profile      Profile?
+
+  @@map("users")
+}
+
+model Profile {
+  userId          String      @id @db.Uuid
+  archetype       Archetype?
+  level           Int         @default(1)
+  profileXp       Int         @default(0)
+  archetypeXp     Int         @default(0)
+  energy          Int         @default(3)
+  softCurrency    Int         @default(0)
+  energyUpdatedAt DateTime    @default(now())
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events          ProfileEvent[]
+
+  @@map("profiles")
+}
+
+model ProfileEvent {
+  id         String           @id @default(uuid()) @db.Uuid
+  userId     String           @db.Uuid
+  eventType  ProfileEventType
+  payload    Json
+  createdAt  DateTime         @default(now())
+  profile    Profile          @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("profile_events")
+}

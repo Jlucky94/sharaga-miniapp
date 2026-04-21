@@ -2,41 +2,45 @@
 
 ## Active phase
 
-Phase: BUILD-P0 - Project operating system
+Phase: BUILD-P1 - First value for a new player
 
 ## Goal
 
-Create a working project shell that a developer or AI agent can understand, run, verify, and extend without oral context.
+Make a new user enter the Mini App, get first value in under one minute, understand their role, and see that progress still exists after reopening.
 
-This repository already has a working Telegram Mini App foundation. BUILD-P0 is therefore mostly about documenting the operating model and confirming the shell remains intact before product mechanics start.
+This phase builds on top of the existing Telegram Mini App shell. Server-side Telegram `initData` validation stays intact, while the first personal game loop becomes real and persistent.
 
 ## In scope
 
-- Keep the existing Telegram Mini App auth/deploy foundation.
-- Document the AI-first phase workflow.
-- Document the current monorepo shape and target stack.
-- Document local commands for install, dev, build, check, tests, and Telegram dev init data.
-- Define the product/domain constraints for the school/university social game.
-- Add local agent rules for `apps/api` and `apps/web`.
+- Keep the existing Telegram auth/JWT shell and trust boundary.
+- Create or load a persistent user/profile on auth.
+- Add archetype selection for `botan`, `sportsman`, and `partygoer`.
+- Add one energy resource and one soft currency.
+- Add the first 4 short actions with readable rewards.
+- Add profile level, archetype progress, and a basic home screen.
+- Create `packages/contracts` for shared product-facing API contracts.
+- Add Prisma/PostgreSQL persistence and migration files for BUILD-P1 state.
 
 ## Out of scope
 
-- Game mechanics.
-- Database schema implementation.
-- Prisma/Neon setup.
-- TanStack Query integration.
-- Parties, async projects, quests, events, inventory, or analytics implementation.
-- UI polish beyond the current shell.
+- Async shared world.
+- Parties.
+- Exam event.
+- Complex inventory.
+- PvP.
+- Daily/weekly quest systems.
+- TanStack Query.
+- `packages/game-core`.
 
 ## Required user-visible result
 
-A new contributor can open the repository and understand:
+A new player can:
 
-- what product is being built;
-- what phase is active;
-- which commands are canonical;
-- which Telegram integration must be preserved;
-- which documents govern roadmap, architecture, domain rules, decisions, and checks.
+- enter through Telegram auth;
+- choose one of three archetypes;
+- perform at least one meaningful action;
+- see profile XP, archetype XP, energy, and soft currency update;
+- reopen the Mini App and see the same saved profile state.
 
 ## Mandatory checks for this phase
 
@@ -44,49 +48,40 @@ A new contributor can open the repository and understand:
 - `pnpm check`
 - `pnpm test`
 - `pnpm build`
-- API health endpoint works during local development when env vars are configured.
-- Web app can authenticate against the API using valid Telegram dev init data.
+- local PostgreSQL is reachable through `DATABASE_URL`
+- `pnpm --filter @sharaga/api prisma:migrate:deploy` applies BUILD-P1 schema
+- manual smoke covers auth -> profile -> archetype select -> action -> reload with valid Telegram dev initData
 
 ## Done when
 
-- `AGENTS.md`, `CLAUDE.md`, `CURRENT_PHASE.md`, `ROADMAP.md`, `ARCHITECTURE.md`, `GAME_DESIGN.md`, `COMMANDS.md`, and `DECISIONS.md` exist and agree with each other.
-- The existing Telegram shell is not replaced or bypassed.
-- Commands in `COMMANDS.md` match real package scripts.
-- Known gaps are recorded below instead of hidden in chat history.
+- BUILD-P1 endpoints and frontend flow work without bypassing Telegram server validation.
+- Saved progress is backed by persistent storage rather than in-memory API state.
+- `packages/contracts` is the shared source for BUILD-P1 enums and DTOs.
+- Docs and commands reflect the new DB/runtime requirements.
+- Known blockers are written below instead of hidden in chat history.
 
 ## Known gaps
 
-- There is no persistent database yet; API user state is currently in memory.
-- `packages/contracts` and `packages/game-core` are recommended by the target architecture but not created yet.
-- TanStack Query, Prisma, PostgreSQL/Neon, Playwright, and structured analytics are target stack items for later phases, not current dependencies.
-- No e2e test suite exists yet.
+- `apps/web` still uses a placeholder `node --test` script; no UI automation exists yet.
+- `packages/game-core`, async world systems, and party/event mechanics are intentionally not started in BUILD-P1.
 
 ## Last verification
 
-2026-04-21:
+2026-04-21 BUILD-P1:
 
-- `pnpm` was not available in PATH, so the documented fallback `npx pnpm@10.13.1` was used.
-- `npx pnpm@10.13.1 install` passed.
-- `npx pnpm@10.13.1 check` passed.
-- `npx pnpm@10.13.1 test` passed.
-- `npx pnpm@10.13.1 build` passed.
-- After `pnpm` was installed in PATH, `pnpm install`, `pnpm check`, `pnpm test`, and `pnpm build` passed.
-- Manual smoke passed with local `TELEGRAM_BOT_TOKEN` and `JWT_SECRET`: `/api/v1/health` returned `ok`, `/api/v1/auth/telegram` accepted generated dev initData, `/api/v1/me` accepted the returned JWT, and the Vite `/api` proxy forwarded auth successfully.
-
-2026-04-21 CHECK-C0:
-
-- Node `v25.9.0` and `pnpm 10.13.1` were available.
-- Root and app package scripts matched `docs/runbooks/COMMANDS.md` and local agent instructions.
 - `pnpm install` passed.
 - `pnpm check` passed.
 - `pnpm test` passed.
 - `pnpm build` passed.
-- Manual smoke passed with local `TELEGRAM_BOT_TOKEN` and `JWT_SECRET`: generated dev initData was accepted by `/api/v1/auth/telegram`, `/api/v1/me` accepted the returned JWT, `http://127.0.0.1:3001/api/v1/health` returned `ok`, and the Vite `/api` proxy forwarded auth through `http://127.0.0.1:3000/api/v1/auth/telegram`.
-- `docs/runbooks/COMMANDS.md` was clarified to export env vars and use `127.0.0.1` for the direct API smoke URL on Windows, where `localhost` may resolve to IPv6 `::1`.
-- No BUILD-P1 game capabilities were started.
+- `packages/contracts` now contains BUILD-P1 action/archetype enums and API schemas.
+- `apps/api` now includes Prisma schema, checked-in migration, persistent profile/auth flow, and `/api/v1/profile`, `/api/v1/class/select`, `/api/v1/actions/perform`.
+- `apps/web` now boots into archetype selection or the saved home screen and shows readable action rewards.
+- After Docker was installed, `docker compose up -d db` passed and local PostgreSQL accepted connections on `127.0.0.1:5432`.
+- `pnpm --filter @sharaga/api prisma:migrate:deploy` passed against the local PostgreSQL instance.
+- Manual smoke passed with local dev env: `/api/v1/health` returned `ok`, auth worked both directly against `http://127.0.0.1:3001/api/v1/auth/telegram` and through the Vite proxy at `http://localhost:3000/api/v1/auth/telegram`, `/api/v1/profile` showed a fresh player with no archetype, `/api/v1/class/select` saved `botan`, `/api/v1/actions/perform` granted readable rewards, and repeated auth plus `/api/v1/profile` returned the same persisted state.
 
 ## Next phase
 
-BUILD-P1 - First value for a new player.
+CHECK-C1 - First Value Control
 
-Start only after BUILD-P0 has been checked and the user asks to implement product mechanics.
+Run only after BUILD-P1 manual smoke is completed in an environment with PostgreSQL access.

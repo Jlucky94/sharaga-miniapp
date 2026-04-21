@@ -51,13 +51,14 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          if [ -z "${TELEGRAM_BOT_TOKEN}" ] || [ -z "${JWT_SECRET}" ]; then
-            echo "::error::Missing required secrets TELEGRAM_BOT_TOKEN and/or JWT_SECRET in GitHub environment"
+          if [ -z "${TELEGRAM_BOT_TOKEN}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${DATABASE_URL}" ]; then
+            echo "::error::Missing required secrets TELEGRAM_BOT_TOKEN, JWT_SECRET, and/or DATABASE_URL in GitHub environment"
             exit 1
           fi
 
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "OWNER='${OWNER}' TELEGRAM_BOT_TOKEN='${TELEGRAM_BOT_TOKEN}' JWT_SECRET='${JWT_SECRET}' JWT_EXPIRES_IN='${JWT_EXPIRES_IN}' bash -s" <<'EOF'
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "OWNER='${OWNER}' TELEGRAM_BOT_TOKEN='${TELEGRAM_BOT_TOKEN}' JWT_SECRET='${JWT_SECRET}' JWT_EXPIRES_IN='${JWT_EXPIRES_IN}' DATABASE_URL='${DATABASE_URL}' bash -s" <<'EOF'
           set -e
 
           mkdir -p /var/www/sharaga-miniapp
@@ -72,6 +73,7 @@ jobs:
                 - TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
                 - JWT_SECRET=$JWT_SECRET
                 - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-1d}
+                - DATABASE_URL=$DATABASE_URL
               restart: unless-stopped
 
             web:

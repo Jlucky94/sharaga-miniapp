@@ -1,29 +1,33 @@
-import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
+
+import {
+  performActionRequestSchema,
+  selectArchetypeRequestSchema,
+  type ActionId,
+  type ApiError,
+  type Archetype
+} from '@sharaga/contracts';
 
 import { validateTelegramInitData } from './auth.js';
 import { signJwt, verifyJwt } from './jwt.js';
+import {
+  buildProfileResponse,
+  performAction,
+  refreshEnergy,
+  selectArchetype,
+  type StoredPlayer
+} from './profile.js';
+import { createPrismaStore, type AppStore } from './store.js';
 
-type ErrorResponse = {
-  code: string;
-  message: string;
-  details?: unknown;
-};
+type ErrorResponse = ApiError;
 
-export type User = {
-  id: string;
-  telegramId: number;
-  firstName: string;
-  lastName: string | null;
-  username: string | null;
-  languageCode: string | null;
-  photoUrl: string | null;
-};
+export type User = StoredPlayer['user'];
 
 type AppConfig = {
   telegramBotToken: string;
   jwtSecret: string;
   jwtExpiresIn: string;
+  databaseUrl: string;
 };
 
 function getRequiredEnv(name: string): string {
@@ -39,25 +43,33 @@ export function getAppConfig(): AppConfig {
   return {
     telegramBotToken: getRequiredEnv('TELEGRAM_BOT_TOKEN'),
     jwtSecret: getRequiredEnv('JWT_SECRET'),
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1d'
+    jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1d',
+    databaseUrl: getRequiredEnv('DATABASE_URL')
   };
 }
 
-export function buildApp(config: AppConfig) {
+type BuildAppDependencies = {
+  store?: AppStore;
+  now?: () => Date;
+};
+
+function getErrorResponse(code: string, message: string, details?: unknown): ErrorResponse {
+  return details ? { code, message, details } : { code, message };
+}
+
+export function buildApp(config: AppConfig, dependencies: BuildAppDependencies = {}) {
   const app = Fastify({ logger: true });
-  const usersByTelegramId = new Map<number, User>();
+  const store = dependencies.store ?? createPrismaStore(config.databaseUrl);
+  const now = dependencies.now ?? (() => new Date());
 
   function getUnauthorizedResponse() {
-    return {
-      code: 'UNAUTHORIZED',
-      message: 'Authorization token is missing or invalid'
-    } satisfies ErrorResponse;
+    return getErrorResponse('UNAUTHORIZED', 'Authorization token is missing or invalid');
   }
 
-  function authorizeRequest(
+  async function authorizeRequest(
     request: { headers: { authorization?: string } },
     reply: { status: (code: number) => { send: (payload: ErrorResponse) => unknown } }
-  ): User | null {
+  ): Promise<User | null> {
     const authHeader = request.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       reply.status(401).send(getUnauthorizedResponse());
@@ -71,11 +83,9 @@ export function buildApp(config: AppConfig) {
       return null;
     }
 
-    const user = Array.from(usersByTelegramId.values()).find(
-      (item) => item.id === payload.sub && item.telegramId === payload.telegramId
-    );
+    const user = await store.findUserById(payload.sub);
 
-    if (!user) {
+    if (!user || user.telegramId !== payload.telegramId) {
       reply.status(401).send(getUnauthorizedResponse());
       return null;
     }
@@ -90,19 +100,18 @@ export function buildApp(config: AppConfig) {
         : undefined;
 
     if (maybeValidation) {
-      return reply.status(400).send({
-        code: 'INVALID_REQUEST',
-        message: 'Invalid request payload',
-        details: maybeValidation
-      } satisfies ErrorResponse);
+      return reply
+        .status(400)
+        .send(getErrorResponse('INVALID_REQUEST', 'Invalid request payload', maybeValidation));
     }
 
     const message = error instanceof Error ? error.message : 'An unexpected error occurred';
 
-    return reply.status(500).send({
-      code: 'INTERNAL_SERVER_ERROR',
-      message
-    } satisfies ErrorResponse);
+    return reply.status(500).send(getErrorResponse('INTERNAL_SERVER_ERROR', message));
+  });
+
+  app.addHook('onClose', async () => {
+    await store.close?.();
   });
 
   app.get('/api/v1/health', async () => ({ status: 'ok' }));
@@ -119,42 +128,132 @@ export function buildApp(config: AppConfig) {
       validated = validateTelegramInitData(body.initData, config.telegramBotToken);
     } catch (error) {
       if (error instanceof Error && error.message === 'INVALID_SIGNATURE') {
-        return reply.status(401).send({
-          code: 'INVALID_SIGNATURE',
-          message: 'Telegram initData signature is invalid'
-        });
+        return reply.status(401).send(getErrorResponse('INVALID_SIGNATURE', 'Telegram initData signature is invalid'));
       }
 
-      return reply.status(400).send({ code: 'INVALID_INIT_DATA', message: 'Telegram initData is invalid' });
+      return reply.status(400).send(getErrorResponse('INVALID_INIT_DATA', 'Telegram initData is invalid'));
     }
 
-    const telegramUser = validated.user;
-    const existingUser = usersByTelegramId.get(telegramUser.id);
+    const authResult = await store.authenticateTelegramUser(validated.user, now());
 
-    const user: User = {
-      id: existingUser?.id ?? randomUUID(),
-      telegramId: telegramUser.id,
-      firstName: telegramUser.first_name,
-      lastName: telegramUser.last_name ?? null,
-      username: telegramUser.username ?? null,
-      languageCode: telegramUser.language_code ?? null,
-      photoUrl: telegramUser.photo_url ?? null
-    };
+    const accessToken = signJwt(
+      { sub: authResult.player.user.id, telegramId: authResult.player.user.telegramId },
+      config.jwtSecret,
+      config.jwtExpiresIn
+    );
 
-    usersByTelegramId.set(telegramUser.id, user);
-
-    const accessToken = signJwt({ sub: user.id, telegramId: user.telegramId }, config.jwtSecret, config.jwtExpiresIn);
-
-    return { accessToken, user };
+    return { accessToken, user: authResult.player.user };
   });
 
   app.get('/api/v1/me', async (request, reply) => {
-    const user = authorizeRequest(request, reply);
+    const user = await authorizeRequest(request, reply);
     if (!user) {
       return;
     }
 
     return user;
+  });
+
+  app.get('/api/v1/profile', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) {
+      return;
+    }
+
+    const player = await store.findPlayerByUserId(user.id);
+    if (!player) {
+      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Profile was not found'));
+    }
+
+    const currentTime = now();
+    const refreshed = refreshEnergy(player.profile, currentTime);
+
+    if (refreshed.changed) {
+      player.profile = await store.replaceProfile(user.id, refreshed.profile);
+    }
+
+    return buildProfileResponse(player, currentTime);
+  });
+
+  app.post('/api/v1/class/select', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) {
+      return;
+    }
+
+    const parsed = selectArchetypeRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send(getErrorResponse('INVALID_ARCHETYPE', 'Archetype is invalid', parsed.error.flatten()));
+    }
+
+    const player = await store.findPlayerByUserId(user.id);
+    if (!player) {
+      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Profile was not found'));
+    }
+
+    if (player.profile.archetype) {
+      return reply
+        .status(409)
+        .send(getErrorResponse('ARCHETYPE_ALREADY_SELECTED', 'Archetype is already selected'));
+    }
+
+    const currentTime = now();
+    const refreshed = refreshEnergy(player.profile, currentTime);
+    const selectedProfile = selectArchetype(refreshed.profile, parsed.data.archetype, currentTime);
+
+    player.profile = await store.replaceProfile(user.id, selectedProfile, {
+      userId: user.id,
+      eventType: 'archetype.selected',
+      payload: {
+        archetype: parsed.data.archetype
+      },
+      createdAt: currentTime
+    });
+
+    return buildProfileResponse(player, currentTime);
+  });
+
+  app.post('/api/v1/actions/perform', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) {
+      return;
+    }
+
+    const parsed = performActionRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send(getErrorResponse('INVALID_ACTION_ID', 'Action is invalid', parsed.error.flatten()));
+    }
+
+    const player = await store.findPlayerByUserId(user.id);
+    if (!player) {
+      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Profile was not found'));
+    }
+
+    const currentTime = now();
+    const actionOutcome = performAction(player.profile, parsed.data.actionId as ActionId, currentTime);
+
+    if ('errorCode' in actionOutcome) {
+      if (actionOutcome.errorCode === 'ARCHETYPE_REQUIRED') {
+        return reply.status(409).send(getErrorResponse('ARCHETYPE_REQUIRED', 'Choose an archetype before performing actions'));
+      }
+
+      return reply.status(409).send(getErrorResponse('INSUFFICIENT_ENERGY', 'Not enough energy for this action'));
+    }
+
+    player.profile = await store.replaceProfile(user.id, actionOutcome.profile, {
+      userId: user.id,
+      eventType: 'action.performed',
+      payload: {
+        actionId: parsed.data.actionId,
+        rewards: actionOutcome.result.rewards
+      },
+      createdAt: currentTime
+    });
+
+    return {
+      ...buildProfileResponse(player, currentTime),
+      result: actionOutcome.result
+    };
   });
 
   return app;
