@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 
 import {
+  contributeRequestSchema,
   performActionRequestSchema,
   selectArchetypeRequestSchema,
   type ActionId,
@@ -17,6 +18,12 @@ import {
   selectArchetype,
   type StoredPlayer
 } from './profile.js';
+import {
+  applyBenefitDelta,
+  applyContributeDelta,
+  computeContributionReward,
+  CONTRIBUTE_ENERGY_COST
+} from './social.js';
 import { createPrismaStore, type AppStore } from './store.js';
 
 type ErrorResponse = ApiError;
@@ -254,6 +261,300 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
       ...buildProfileResponse(player, currentTime),
       result: actionOutcome.result
     };
+  });
+
+  // ─── BUILD-P2: Async Social World ──────────────────────────────────────────
+
+  app.get('/api/v1/projects', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) return;
+
+    const projects = await store.listProjects();
+    const contributorIds = await Promise.all(projects.map((p) => store.listProjectContributorIds(p.id)));
+    const claimsPerProject = await Promise.all(
+      projects.map(async (p) => {
+        const claimed = await store.listFeed({ limit: 1 }).then(() => false).catch(() => false);
+        void claimed;
+        return false;
+      })
+    );
+
+    // Build user-specific contribution totals and claim status via feed
+    const userContribsAndClaims = await Promise.all(
+      projects.map(async (p, i) => {
+        const allContribs = await store.listProjectContributorIds(p.id);
+        const userHasContributed = allContribs.includes(user.id);
+
+        // Check benefit claim: we look at events
+        const events = await store.listEvents(user.id);
+        const hasClaimed = events.some(
+          (e) => e.eventType === 'benefit.claimed' && (e.payload.projectId as string) === p.id
+        );
+
+        void claimsPerProject[i];
+        return {
+          userContribution: userHasContributed ? 1 : 0,
+          userHasClaimed: hasClaimed
+        };
+      })
+    );
+
+    return {
+      projects: projects.map((p, i) => ({
+        id: p.id,
+        kind: p.kind,
+        title: p.title,
+        description: p.description,
+        threshold: p.threshold,
+        progress: p.progress,
+        unlocked: p.unlockedAt !== null,
+        affinity: p.affinity,
+        userContribution: userContribsAndClaims[i]?.userContribution ?? 0,
+        userHasClaimed: userContribsAndClaims[i]?.userHasClaimed ?? false,
+        contributorCount: contributorIds[i]?.length ?? 0
+      }))
+    };
+  });
+
+  app.post('/api/v1/projects/:id/contribute', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) return;
+
+    const { id: projectId } = request.params as { id: string };
+
+    const parsed = contributeRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send(getErrorResponse('INVALID_REQUEST', 'Invalid request', parsed.error.flatten()));
+    }
+
+    const { requestId, amount } = parsed.data;
+
+    const project = await store.getProjectById(projectId);
+    if (!project) {
+      return reply.status(404).send(getErrorResponse('PROJECT_NOT_FOUND', 'Project was not found'));
+    }
+
+    if (project.unlockedAt !== null) {
+      return reply.status(409).send(getErrorResponse('PROJECT_ALREADY_UNLOCKED', 'This project is already unlocked'));
+    }
+
+    const player = await store.findPlayerByUserId(user.id);
+    if (!player) {
+      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Profile was not found'));
+    }
+
+    const currentTime = now();
+    const refreshed = refreshEnergy(player.profile, currentTime);
+    const currentProfile = refreshed.profile;
+
+    if (!currentProfile.archetype) {
+      return reply.status(409).send(getErrorResponse('ARCHETYPE_REQUIRED', 'Choose an archetype before contributing'));
+    }
+
+    if (currentProfile.energy < CONTRIBUTE_ENERGY_COST) {
+      return reply.status(422).send(getErrorResponse('INSUFFICIENT_ENERGY', 'Not enough energy to contribute'));
+    }
+
+    const reward = computeContributionReward(currentProfile.archetype, project.affinity);
+    const profileAfter = applyContributeDelta(currentProfile, reward, currentTime);
+
+    try {
+      const result = await store.contributeToProject({
+        userId: user.id,
+        projectId,
+        requestId,
+        amount,
+        actionId: 'contribute',
+        profileAfter,
+        events: [
+          {
+            userId: user.id,
+            eventType: 'project.contributed',
+            payload: { projectId, projectKind: project.kind, amount, requestId },
+            createdAt: currentTime
+          }
+        ],
+        now: currentTime
+      });
+
+      return {
+        profile: {
+          userId: result.profile.userId,
+          archetype: result.profile.archetype,
+          level: result.profile.level,
+          profileXp: result.profile.profileXp,
+          archetypeXp: result.profile.archetypeXp,
+          energy: result.profile.energy,
+          softCurrency: result.profile.softCurrency,
+          reputation: result.profile.reputation
+        },
+        project: {
+          id: result.project.id,
+          kind: result.project.kind,
+          title: result.project.title,
+          description: result.project.description,
+          threshold: result.project.threshold,
+          progress: result.project.progress,
+          unlocked: result.project.unlockedAt !== null,
+          affinity: result.project.affinity,
+          userContribution: 1,
+          userHasClaimed: false
+        },
+        contribution: {
+          id: result.contribution.id,
+          projectId: result.contribution.projectId,
+          userId: result.contribution.userId,
+          actionId: result.contribution.actionId,
+          amount: result.contribution.amount,
+          requestId: result.contribution.requestId,
+          createdAt: result.contribution.createdAt.toISOString()
+        },
+        unlocked: result.unlocked
+      };
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message === 'PROJECT_ALREADY_UNLOCKED') {
+          return reply.status(409).send(getErrorResponse('PROJECT_ALREADY_UNLOCKED', 'Project is already unlocked'));
+        }
+        if ((err as { statusCode?: number }).statusCode === 503) {
+          return reply.status(503).send(getErrorResponse('SERVICE_UNAVAILABLE', 'Could not process contribution, please retry'));
+        }
+      }
+      throw err;
+    }
+  });
+
+  app.post('/api/v1/projects/:id/claim-benefit', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) return;
+
+    const { id: projectId } = request.params as { id: string };
+
+    const project = await store.getProjectById(projectId);
+    if (!project) {
+      return reply.status(404).send(getErrorResponse('PROJECT_NOT_FOUND', 'Project was not found'));
+    }
+
+    if (project.unlockedAt === null) {
+      return reply.status(403).send(getErrorResponse('PROJECT_NOT_UNLOCKED', 'This project has not been unlocked yet'));
+    }
+
+    const contributorIds = await store.listProjectContributorIds(projectId);
+    if (contributorIds.includes(user.id)) {
+      return reply.status(403).send(getErrorResponse('CONTRIBUTOR_CANNOT_CLAIM', 'You contributed to this project and cannot claim the benefit'));
+    }
+
+    const player = await store.findPlayerByUserId(user.id);
+    if (!player) {
+      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Profile was not found'));
+    }
+
+    const currentTime = now();
+    const profileAfter = applyBenefitDelta(player.profile, currentTime);
+
+    try {
+      const result = await store.claimBenefit({
+        userId: user.id,
+        projectId,
+        profileAfter,
+        events: [
+          {
+            userId: user.id,
+            eventType: 'benefit.claimed',
+            payload: { projectId, projectKind: project.kind },
+            createdAt: currentTime
+          }
+        ],
+        now: currentTime
+      });
+
+      return {
+        profile: {
+          userId: result.profile.userId,
+          archetype: result.profile.archetype,
+          level: result.profile.level,
+          profileXp: result.profile.profileXp,
+          archetypeXp: result.profile.archetypeXp,
+          energy: result.profile.energy,
+          softCurrency: result.profile.softCurrency,
+          reputation: result.profile.reputation
+        },
+        claim: {
+          id: result.claim.id,
+          projectId: result.claim.projectId,
+          userId: result.claim.userId,
+          unlockCycle: result.claim.unlockCycle,
+          createdAt: result.claim.createdAt.toISOString()
+        }
+      };
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message === 'BENEFIT_ALREADY_CLAIMED' || (err as { statusCode?: number }).statusCode === 409) {
+          return reply.status(409).send(getErrorResponse('BENEFIT_ALREADY_CLAIMED', 'You have already claimed this benefit'));
+        }
+        if (err.message === 'CONTRIBUTOR_CANNOT_CLAIM') {
+          return reply.status(403).send(getErrorResponse('CONTRIBUTOR_CANNOT_CLAIM', 'Contributors cannot claim their own project benefit'));
+        }
+      }
+      throw err;
+    }
+  });
+
+  app.post('/api/v1/contributions/:id/like', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) return;
+
+    const { id: contributionId } = request.params as { id: string };
+
+    const contribution = await store.getContributionById(contributionId);
+    if (!contribution) {
+      return reply.status(404).send(getErrorResponse('CONTRIBUTION_NOT_FOUND', 'Contribution was not found'));
+    }
+
+    if (contribution.userId === user.id) {
+      return reply.status(400).send(getErrorResponse('SELF_LIKE', 'You cannot like your own contribution'));
+    }
+
+    const currentTime = now();
+
+    try {
+      const result = await store.likeContribution({
+        contributionId,
+        fromUserId: user.id,
+        now: currentTime
+      });
+
+      return {
+        like: {
+          id: result.like.id,
+          contributionId: result.like.contributionId,
+          fromUserId: result.like.fromUserId,
+          createdAt: result.like.createdAt.toISOString()
+        }
+      };
+    } catch (err) {
+      if (err instanceof Error && (err.message === 'ALREADY_LIKED' || (err as { statusCode?: number }).statusCode === 409)) {
+        return reply.status(409).send(getErrorResponse('ALREADY_LIKED', 'You have already liked this contribution'));
+      }
+      throw err;
+    }
+  });
+
+  app.get('/api/v1/feed', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) return;
+
+    const query = request.query as { limit?: string; cursor?: string };
+    const limit = Math.min(parseInt(query.limit ?? '20', 10) || 20, 50);
+    const cursor = query.cursor ? new Date(query.cursor) : undefined;
+
+    const items = await store.listFeed({ limit: limit + 1, cursor });
+    const hasMore = items.length > limit;
+    const page = hasMore ? items.slice(0, limit) : items;
+    const lastItem = page[page.length - 1];
+    const nextCursor = hasMore && lastItem ? lastItem.createdAt : null;
+
+    return { items: page, nextCursor };
   });
 
   return app;

@@ -61,6 +61,17 @@ Create `packages/contracts` and `packages/game-core` when BUILD-P1/P2 needs real
 | Managed DB | Neon | Target |
 | Tests | Node test/Vitest + Playwright | Node test current, Vitest/Playwright target |
 
+## BUILD-P2 additions
+
+- `apps/api/src/social.ts` — pure domain helpers for contribution rewards, benefit payouts, and reputation deltas (mirrors `profile.ts` shape).
+- Four new Prisma models: `Project`, `Contribution`, `BenefitClaim`, `ContributionLike`.
+- `Profile.reputation` added.
+- `ProfileEventType` extended: `project_contributed`, `project_unlocked`, `benefit_claimed`, `contribution_liked`, `reputation_gained`.
+- Five new API endpoints: `GET /projects`, `POST /projects/:id/contribute`, `POST /projects/:id/claim-benefit`, `POST /contributions/:id/like`, `GET /feed`.
+- Feed query: single `ProfileEvent.findMany` for feed-typed events, batched `User` + `Project` lookups (3 queries total), keyset pagination by `createdAt`.
+- `apps/web/src/main.tsx` split into `app/`, `lib/`, `features/home`, `features/projects`, `features/feed`.
+- Seed: `apps/api/prisma/seed.ts` provisions 3 campus projects (notes/botan, gym/sportsman, festival/partygoer) idempotently.
+
 ## BUILD-P1 additions
 
 - `packages/contracts` now holds shared enums, DTO schemas, and action catalog metadata for the first player loop.

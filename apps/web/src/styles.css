@@ -278,6 +278,118 @@ button {
   font-weight: 700;
 }
 
+.app-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-root .app-shell {
+  flex: 1;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+
+.bottom-tabs {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  border-top: 1px solid rgba(29, 31, 36, 0.1);
+  background: rgba(251, 244, 232, 0.96);
+  backdrop-filter: blur(12px);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 100;
+}
+
+.tab-button {
+  flex: 1;
+  min-height: 56px;
+  padding: 8px 4px;
+  border: 0;
+  background: transparent;
+  color: #63707d;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color 120ms ease;
+}
+
+.tab-button--active {
+  color: #1d6787;
+}
+
+.progress-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(29, 103, 135, 0.12);
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1d6787, #0d3f55);
+  transition: width 400ms ease;
+}
+
+.progress-label {
+  font-size: 0.82rem;
+  color: #63707d;
+  margin-top: 4px;
+}
+
+.feed-list {
+  width: min(100%, 920px);
+  margin: 18px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feed-item {
+  padding: 16px 20px;
+  border: 1px solid rgba(29, 31, 36, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.feed-item p {
+  flex: 1;
+  margin: 0;
+  color: #1d1f24;
+  font-size: 0.96rem;
+  line-height: 1.5;
+}
+
+.feed-item--highlight {
+  background: rgba(255, 210, 112, 0.15);
+  border-color: rgba(197, 128, 27, 0.22);
+}
+
+.feed-time {
+  font-size: 0.78rem;
+  color: #63707d;
+}
+
+.inline-success {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(29, 135, 103, 0.1);
+  color: #1d6787;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 @media (max-width: 640px) {
   .app-shell {
     padding-inline: 14px;

@@ -37,7 +37,8 @@ test('profile response schema accepts the expected wire shape', () => {
       profileXp: 10,
       archetypeXp: 6,
       energy: 2,
-      softCurrency: 1
+      softCurrency: 1,
+      reputation: 0
     },
     serverTime: '2026-04-21T00:00:00.000Z',
     nextEnergyAt: '2026-04-21T00:30:00.000Z'

@@ -82,6 +82,27 @@ Consequences:
 - `apps/api/prisma` owns the BUILD-P1 schema and migration files;
 - local and deployment runbooks must include DB setup and migration steps.
 
+## 2026-04-22 - BUILD-P2 async social data model and idempotency
+
+Decision: store campus projects, contributions, benefit claims, and likes as first-class tables; use client-supplied `requestId` + DB unique constraints as the idempotency layer; build the global feed from `ProfileEvent` rows instead of a separate materialized table; keep domain formulas in `apps/api/src/social.ts` until a second consumer exists.
+
+Rationale:
+
+- Client `requestId` (UUID per button press, retained on retry) plus `@@unique([userId, requestId])` prevents double-grant on network retry without requiring a distributed lock.
+- DB-level unique constraints on `BenefitClaim(projectId, userId, unlockCycle)` and `ContributionLike(contributionId, fromUserId)` are the authoritative idempotency guards — application logic catches Prisma P2002 and maps to 409.
+- Re-using `ProfileEvent` for the feed avoids dual-write (one write = one source of truth for both event log and feed). A keyset index on `createdAt` and a batched project/user lookup keep feed queries to 3 round-trips regardless of page size.
+- Project progress is updated via a CAS (compare-and-swap) loop inside a Prisma transaction, bounded at 5 retries. Exactly one CAS winner crosses the threshold, so unlock side-effects (project_unlocked event + per-contributor reputation bumps) happen atomically exactly once.
+- `social.ts` stays inside `apps/api` because BUILD-P2 is the only consumer. Promote to `packages/game-core` in BUILD-P3 if season math becomes a second consumer.
+
+Consequences:
+
+- `apps/api/prisma` gains four new models: `Project`, `Contribution`, `BenefitClaim`, `ContributionLike`.
+- `Profile` gains a `reputation` field.
+- `ProfileEventType` enum gains five new values.
+- Seed script (`apps/api/prisma/seed.ts`) provisions the three campus projects idempotently.
+- API adds five endpoints under `/api/v1/projects`, `/api/v1/contributions`, `/api/v1/feed`.
+- Web gains Projects and Feed tabs; `main.tsx` splits into feature folders.
+
 ## 2026-04-21 - Create packages/contracts for BUILD-P1 shared API schemas
 
 Decision: introduce `packages/contracts` in BUILD-P1 as the shared source for archetypes, actions, and profile/action DTOs.

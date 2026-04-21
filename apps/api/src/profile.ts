@@ -14,6 +14,7 @@ export const PROFILE_XP_PER_ACTION = 10;
 export const SOFT_CURRENCY_PER_ACTION = 1;
 
 export type StoredProfile = ProfileSnapshot & {
+  reputation: number;
   createdAt: Date;
   updatedAt: Date;
   energyUpdatedAt: Date;
@@ -33,6 +34,7 @@ export function getInitialProfile(userId: string, now: Date): StoredProfile {
     archetypeXp: 0,
     energy: MAX_ENERGY,
     softCurrency: 0,
+    reputation: 0,
     createdAt: now,
     updatedAt: now,
     energyUpdatedAt: now
@@ -162,7 +164,8 @@ export function buildProfileResponse(player: StoredPlayer, now: Date): ProfileRe
       profileXp: player.profile.profileXp,
       archetypeXp: player.profile.archetypeXp,
       energy: player.profile.energy,
-      softCurrency: player.profile.softCurrency
+      softCurrency: player.profile.softCurrency,
+      reputation: player.profile.reputation
     },
     serverTime: now.toISOString(),
     nextEnergyAt: getNextEnergyAt(player.profile)?.toISOString() ?? null
