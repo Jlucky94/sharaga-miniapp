@@ -44,6 +44,8 @@ Do not read, scan, or index `prompts/` during normal work. That directory is an 
 - No hidden schema changes without migration, seed/update plan, and docs update.
 - Do not change product scope on your own.
 - Treat the game as event-driven: important player actions should be recordable as domain events.
+- Treat the product as a mobile-first Telegram Mini App: design primary UX flows and layouts for phone screens only unless the user explicitly asks for a desktop adaptation.
+- Do not spend scope on separate desktop-first design or dedicated desktop layouts by default; desktop can degrade gracefully without bespoke product design work.
 
 ## Current foundation
 
