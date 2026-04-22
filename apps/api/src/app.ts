@@ -2,7 +2,9 @@ import Fastify from 'fastify';
 
 import {
   contributeRequestSchema,
+  queueForExamRequestSchema,
   performActionRequestSchema,
+  setPartyReadyRequestSchema,
   selectArchetypeRequestSchema,
   type ActionId,
   type ApiError,
@@ -24,7 +26,8 @@ import {
   computeContributionReward,
   CONTRIBUTE_ENERGY_COST
 } from './social.js';
-import { createPrismaStore, type AppStore, type FeedCursor } from './store.js';
+import type { StoredExamParty } from './exam.js';
+import { createPrismaStore, type AppStore, type FeedCursor, type StoredExamRun } from './store.js';
 
 type ErrorResponse = ApiError;
 
@@ -62,6 +65,47 @@ type BuildAppDependencies = {
 
 function getErrorResponse(code: string, message: string, details?: unknown): ErrorResponse {
   return details ? { code, message, details } : { code, message };
+}
+
+function toPartyResponse(party: StoredExamParty) {
+  return {
+    id: party.id,
+    ownerUserId: party.ownerUserId,
+    capacity: party.capacity,
+    status: party.status,
+    memberCount: party.memberCount,
+    members: party.members.map((member: StoredExamParty['members'][number]) => ({
+      userId: member.userId,
+      firstName: member.firstName,
+      archetype: member.archetype,
+      joinedAt: member.joinedAt.toISOString(),
+      readyAt: member.readyAt?.toISOString() ?? null,
+      isOwner: member.isOwner,
+      isCurrentUser: member.isCurrentUser
+    })),
+    createdAt: party.createdAt.toISOString(),
+    updatedAt: party.updatedAt.toISOString()
+  };
+}
+
+function toRunResponse(run: StoredExamRun) {
+  return {
+    id: run.id,
+    partyId: run.partyId,
+    resolvedByUserId: run.resolvedByUserId,
+    successChancePct: run.successChancePct,
+    rollPct: run.rollPct,
+    outcome: run.outcome,
+    summary: run.summary,
+    rewards: run.rewards.map((reward) => ({
+      userId: reward.userId,
+      profileXp: reward.profileXp,
+      archetypeXp: reward.archetypeXp,
+      softCurrency: reward.softCurrency,
+      reputation: reward.reputation
+    })),
+    resolvedAt: run.resolvedAt.toISOString()
+  };
 }
 
 function encodeFeedCursor(cursor: FeedCursor): string {
@@ -572,6 +616,93 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
         return reply.status(409).send(getErrorResponse('ALREADY_LIKED', 'Ты уже сказал спасибо за этот вклад'));
       }
       throw err;
+    }
+  });
+
+  app.get('/api/v1/exam', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) return;
+
+    const state = await store.getExamState({ userId: user.id });
+    return {
+      exam: state.exam,
+      party: state.party ? toPartyResponse(state.party) : null,
+      latestRun: state.latestRun ? toRunResponse(state.latestRun) : null
+    };
+  });
+
+  app.post('/api/v1/parties/queue', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) return;
+
+    const parsed = queueForExamRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send(getErrorResponse('INVALID_REQUEST', 'Размер пати указан некорректно', parsed.error.flatten()));
+    }
+
+    try {
+      const party = await store.queueForExam({ userId: user.id, capacity: parsed.data.capacity, now: now() });
+      return { party: toPartyResponse(party) };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'ARCHETYPE_REQUIRED') {
+        return reply.status(409).send(getErrorResponse('ARCHETYPE_REQUIRED', 'Сначала выбери роль'));
+      }
+      if (error instanceof Error && (error as { statusCode?: number }).statusCode === 503) {
+        return reply.status(503).send(getErrorResponse('QUEUE_BUSY', 'Очередь сейчас перегружена, попробуй еще раз'));
+      }
+      throw error;
+    }
+  });
+
+  app.post('/api/v1/parties/:id/ready', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) return;
+
+    const parsed = setPartyReadyRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send(getErrorResponse('INVALID_REQUEST', 'Статус готовности указан некорректно', parsed.error.flatten()));
+    }
+
+    try {
+      const result = await store.setPartyReady({
+        partyId: (request.params as { id: string }).id,
+        userId: user.id,
+        ready: parsed.data.ready,
+        now: now()
+      });
+
+      return {
+        party: result.party ? toPartyResponse(result.party) : null,
+        run: result.run ? toRunResponse(result.run) : null
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'PARTY_NOT_FOUND') {
+        return reply.status(404).send(getErrorResponse('PARTY_NOT_FOUND', 'Пати не найдена'));
+      }
+      throw error;
+    }
+  });
+
+  app.post('/api/v1/parties/:id/leave', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) return;
+
+    try {
+      const party = await store.leaveParty({
+        partyId: (request.params as { id: string }).id,
+        userId: user.id,
+        now: now()
+      });
+
+      return { party: party ? toPartyResponse(party) : null };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'PARTY_NOT_FOUND') {
+        return reply.status(404).send(getErrorResponse('PARTY_NOT_FOUND', 'Пати не найдена'));
+      }
+      if (error instanceof Error && error.message === 'PARTY_NOT_ACTIVE') {
+        return reply.status(409).send(getErrorResponse('PARTY_NOT_ACTIVE', 'Из этой пати уже нельзя выйти'));
+      }
+      throw error;
     }
   });
 

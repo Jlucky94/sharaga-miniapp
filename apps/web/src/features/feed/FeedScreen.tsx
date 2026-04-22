@@ -36,7 +36,7 @@ function FeedItemRow({
   }
 
   const time = new Date(item.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  const isOwnItem = item.userId === currentUserId;
+  const isOwnItem = 'userId' in item && item.userId === currentUserId;
 
   if (item.kind === 'contribution') {
     return (
@@ -85,6 +85,18 @@ function FeedItemRow({
           <strong>{item.userFirstName}</strong> сказал спасибо за вклад в <em>{item.projectTitle}</em>
         </p>
         <span className="feed-time">{time}</span>
+      </article>
+    );
+  }
+
+  if (item.kind === 'exam_result') {
+    return (
+      <article className="feed-item feed-item--highlight">
+        <p>
+          <strong>{item.ownerFirstName}</strong> вывел пати на экзамен: {item.outcome === 'success' ? 'сдали' : 'вытащили частично'}
+        </p>
+        <span className="feed-time">{time}</span>
+        <p>{item.summary}</p>
       </article>
     );
   }

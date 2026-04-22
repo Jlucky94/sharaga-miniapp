@@ -2,39 +2,39 @@
 
 ## Active phase
 
-Phase: BUILD-P2 - Async Social World
+Phase: BUILD-P3 - Cooperative Exam
 
 ## Goal
 
-Prove that one player can help another asynchronously and receive a visible social signal. The emotional target is "my contribution helped another player" — if reuse is invisible the feature fails.
+Prove that a small party can gather for the Exam, where archetype composition materially affects the result and the outcome leaves a visible social trace.
 
 ## In scope
 
-- 3 campus projects: Notes (botan), Gym (sportsman), Festival Stage (partygoer).
-- Player A contributes to a project (costs 1 energy, grants XP + currency + archetype XP).
-- Project has a progress threshold; reaching it unlocks the benefit for other players.
-- Player B (non-contributor) can claim the unlocked benefit (one-time per unlock cycle).
-- When B claims, A receives reputation and a feed entry.
-- Any player can like/thank a contribution; author receives +1 reputation.
-- Global social feed shows: contributions, unlocks, benefit claims, likes.
-- Repeated requests and reload do not duplicate rewards (client requestId idempotency + DB unique constraints).
-- Two-account scenario covered by tests.
+- One active weekly-framed Exam event exposed through `/api/v1/exam`.
+- Party capacity choice `3 / 4 / 5`.
+- Queue + autofill party assembly.
+- Ready check and automatic start once the party is full and every member is ready.
+- Deterministic backend Exam rules with two visible outcomes: `success`, `partial_failure`.
+- Per-member rewards written once with idempotent completion behavior.
+- One Exam result entry in the shared social feed.
+- Three-account scenario covered by tests.
 
 ## Out of scope
 
-- Cooperative Exam or parties.
-- Guilds, PvP, seasons.
-- New archetypes beyond the base three.
-- New currencies (reputation and existing soft currency only).
-- Daily/weekly quests.
+- Manual invites or public party browser.
+- PvP, guilds, seasons, battle pass, marketplace.
+- Separate scheduler/calendar system for Exam windows.
+- Energy cost or cooldown for Exam participation.
+- Browser automation beyond current placeholder web tests.
 
 ## Required user-visible result
 
-- Player A opens the app, goes to Projects tab, contributes to a campus project.
-- With enough contributions the project unlocks.
-- Player B opens the app, sees the unlocked project, claims the benefit.
-- Player A reopens the app and sees: reputation increased, feed shows B's claim and/or like.
-- No double-rewards on retry or reload.
+- Player opens the app and sees a new `Экзамен` tab.
+- Player chooses party size and enters queue.
+- Autofill gathers a full party.
+- Members mark readiness.
+- Exam starts automatically and resolves to either `success` or `partial_failure`.
+- Rewards apply once, survive reload, and the result appears in the shared feed.
 
 ## Mandatory checks for this phase
 
@@ -43,97 +43,52 @@ Prove that one player can help another asynchronously and receive a visible soci
 - `pnpm test`
 - `pnpm build`
 - local PostgreSQL reachable through `DATABASE_URL`
-- `pnpm --filter @sharaga/api prisma:migrate:deploy` applies BUILD-P2 schema (migration `20260422000000_build_p2_social`)
-- `pnpm --filter @sharaga/api prisma:seed` seeds 3 campus projects
-- manual two-account smoke: A contributes until unlock → B claims benefit → A sees reputation + feed entry
+- `pnpm --filter @sharaga/api prisma:migrate:deploy` applies BUILD-P3 schema (migration `20260423000000_build_p3_exam`)
+- `pnpm --filter @sharaga/api prisma:seed`
+- manual three-account smoke: queue -> full party -> all ready -> autostart -> rewards + feed entry
 
 ## Done when
 
-- All five social test files pass (projects, benefit, likes, feed, scenario).
-- Two-account scenario end-to-end works via API.
-- Front-end shows Home + Projects + Feed tabs with working social loop.
-- State is consistent after reload and repeated requests.
-- BUILD-P1 first-value-loop test still passes (regression check).
-- Docs reflect verified BUILD-P2 state.
+- BUILD-P1 and BUILD-P2 regressions still pass.
+- Exam unit, queue, and scenario tests pass.
+- Web shows Home + Projects + Exam + Feed tabs.
+- Party state remains consistent after reload and repeated ready requests.
+- Exam rewards and feed entry do not duplicate.
+- Docs reflect BUILD-P3 behavior and remaining verification gaps honestly.
 
 ## Known gaps
 
-- `apps/web` tests are still node --test placeholder; browser automation is a later-phase concern.
-- Soft-deletion / reset of project cycles is out of scope for BUILD-P2.
-- Core user-facing copy is now expected to stay Russian-first across web UI, action catalog, project display text, and API human-readable messages; technical ids remain English by design.
-- Manual browser smoke for the Russian-first copy pass is still pending; browser automation remains a later-phase concern.
+- Live PostgreSQL migration and manual three-account smoke were not run in this verification pass because no DB session was exercised here.
+- `apps/web` still uses placeholder `node --test`; browser automation remains a later phase concern.
+- Exam currently uses queue + autofill only; manual invite flows remain out of scope for BUILD-P3.
 
 ## Last verification
 
 Date: 2026-04-22
 
 Commands run (from repo root):
-- `pnpm install` ✅ — workspace dependencies up to date, Prisma client generated.
-- `pnpm check` ✅ — zero TypeScript errors across all 3 packages.
-- `pnpm test` ✅ — 35 tests pass, 0 fail:
-  - `packages/contracts`: 4/4 (archetype schema, action catalog, profile DTO, request/response alignment).
-  - `apps/api auth.test.ts`: 6/6 (BUILD-P1 regression — Telegram auth, profile creation, archetype selection, action perform, reload state).
-  - `apps/api social.projects.test.ts`: 5/5 (contribute happy path, requestId idempotency, energy exhaustion, unlock at threshold, post-unlock rejection).
-  - `apps/api social.benefit.test.ts`: 5/5 (claim flow, duplicate rejection, contributor exclusion, locked-project rejection, reputation bump on A).
-  - `apps/api social.likes.test.ts`: 4/4 (like creation, duplicate rejection, self-like rejection, reputation increment).
-  - `apps/api social.feed.test.ts`: 4/4 (event ordering, all 4 event kinds, cursor pagination, same-timestamp cursor stability).
-  - `apps/api social.scenario.test.ts`: 1/1 (two-account full loop: A contributes until unlock → B claims benefit → B likes → A sees reputation + feed signal).
-  - `apps/web`: 0 tests (placeholder — known gap per phase contract).
-- `pnpm build` ✅ — contracts, API, and web all compile; Vite prod bundle 218.49 kB.
+- `pnpm install` ✅ — workspace already up to date; Prisma client regenerated.
+- `pnpm check` ✅ — zero TypeScript errors across contracts, API, and web.
+- `pnpm test` ✅ — 37 API tests + 4 contract tests pass, 0 fail.
+- `pnpm build` ✅ — contracts, API, and web compile; web production bundle built successfully.
 
-Contract points verified:
+Contract points verified locally:
 
-| C2 point | Result |
+| BUILD-P3 point | Result |
 |---|---|
-| First path (P0+P1 regression) — new player auth, archetype, action, reload | ✅ auth.test.ts green |
-| A contributes to shared project (energy cost, XP, requestId idempotency) | ✅ social.projects.test.ts |
-| Project unlocks at threshold; post-unlock contribution rejected | ✅ social.projects.test.ts |
-| B claims unlocked benefit once; retry returns 409 | ✅ social.benefit.test.ts |
-| A receives reputation when B claims; feed shows benefit_claimed | ✅ social.benefit.test.ts + social.scenario.test.ts |
-| Like gives +1 reputation to author; self-like and duplicate rejected | ✅ social.likes.test.ts |
-| Feed shows all 4 event kinds; keyset pagination works | ✅ social.feed.test.ts |
-| Feed cursor keeps same-timestamp events reachable across pages | ✅ social.feed.test.ts |
-| State consistent after repeated requests and reload | ✅ social.scenario.test.ts |
-| Two-account end-to-end scenario | ✅ social.scenario.test.ts |
+| Queue + autofill creates/fills a party | ✅ `exam.queue.test.ts` |
+| Full party moves into readiness | ✅ `exam.queue.test.ts` |
+| Final ready triggers automatic Exam start | ✅ `exam.scenario.test.ts` |
+| Outcome depends on archetype composition logic | ✅ `exam.unit.test.ts` |
+| Rewards apply and persist on profile | ✅ `exam.unit.test.ts` + `exam.scenario.test.ts` |
+| Feed receives one Exam result item | ✅ `exam.scenario.test.ts` + existing feed tests |
+| BUILD-P1 / BUILD-P2 regressions remain green | ✅ existing auth + social suites |
 
-Live DB verification (Docker):
-- `docker compose up -d db` ✅ — PostgreSQL 16 container started.
-- `prisma:migrate:deploy` ✅ — migration `20260422000000_build_p2_social` applied; all 2 migrations current.
-- `prisma:seed` ✅ — 3 campus projects upserted (notes/gym/festival); re-run idempotent.
-- Live two-account API smoke (festival project, threshold=4):
-
-  | Step | Result |
-  |---|---|
-  | P1 regression — new profile saved after archetype select | ✅ archetype=partygoer, energy=3 |
-  | A contributes 3x — progress 1→3, energy depletes correctly | ✅ |
-  | B contributes 1x — progress=4/4, unlocked=true | ✅ |
-  | A reputation after unlock | ✅ reputation=3 |
-  | C (non-contributor) claims benefit — softCurrency granted | ✅ softCurrency=2 |
-  | C duplicate claim | ✅ BENEFIT_ALREADY_CLAIMED |
-  | B tries to claim (contributor exclusion) | ✅ CONTRIBUTOR_CANNOT_CLAIM |
-  | A feed shows benefit/unlock/contribution/like events with projectTitle | ✅ all 4 kinds present |
-  | C likes A's contribution | ✅ like recorded |
-  | C duplicate like | ✅ ALREADY_LIKED |
-  | A self-like | ✅ SELF_LIKE |
-  | A final reputation after unlock + like | ✅ reputation=6 |
-  | Reload — re-auth A, same profile state | ✅ archetype=partygoer reputation=6 |
-  | Feed cursor pagination | ✅ nextCursor returned, page 2 loads |
-
-- Post-fix live API smoke (gym project, future clock to force newest feed entries):
-
-  | Step | Result |
-  |---|---|
-  | A requestId replay on first contribution | ✅ same contribution id, no extra project progress |
-  | A contributes 5x to gym until unlock | ✅ project unlocked |
-  | A reputation after unlock | ✅ 0 → 3 |
-  | B claims benefit once | ✅ success |
-  | B duplicate claim | ✅ 409 BENEFIT_ALREADY_CLAIMED |
-  | A reputation after B claim | ✅ 3 → 5 |
-  | A sees contribution + unlock + B benefit on first `/feed` page | ✅ all present |
-  | Reload / repeated login keeps same profile and reputation | ✅ user id stable, reputation=5 |
-
-- Web UI smoke (browser click-through) was not performed; browser automation is a known gap for this phase.
+Not yet verified in this pass:
+- `prisma:migrate:deploy` against a live PostgreSQL database
+- `prisma:seed` against a live PostgreSQL database
+- manual three-account browser/API smoke against live DB
 
 ## Next phase
 
-BUILD-P3 — Cooperative Event Exam
+CHECK-C3 - Cooperative Event Control

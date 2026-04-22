@@ -72,6 +72,17 @@ Create `packages/contracts` and `packages/game-core` when BUILD-P1/P2 needs real
 - `apps/web/src/main.tsx` split into `app/`, `lib/`, `features/home`, `features/projects`, `features/feed`.
 - Seed: `apps/api/prisma/seed.ts` provisions 3 campus projects (notes/botan, gym/sportsman, festival/partygoer) idempotently.
 
+## BUILD-P3 additions
+
+- `apps/api/src/exam.ts` — pure Exam rules for queue-based party runs, deterministic roll calculation, readable summaries, and per-member reward deltas.
+- Four new Prisma models: `Party`, `PartyMember`, `ExamRun`, `ExamReward`.
+- `ProfileEventType` extended with `exam_completed`.
+- Four new API endpoints: `GET /exam`, `POST /parties/queue`, `POST /parties/:id/ready`, `POST /parties/:id/leave`.
+- Exam lifecycle is queue + autofill -> ready check -> autostart on last ready -> immediate resolution.
+- Feed query now maps one additional feed-visible event type, `exam_completed`, into `exam_result`.
+- `apps/web` gains `features/exam` and a fourth tab, `Экзамен`, alongside Home / Projects / Feed.
+- `packages/game-core` is still intentionally absent: BUILD-P3 Exam formulas are only consumed inside the API and tests, so `exam.ts` remains local for now.
+
 ## BUILD-P1 additions
 
 - `packages/contracts` now holds shared enums, DTO schemas, and action catalog metadata for the first player loop.
@@ -223,9 +234,10 @@ All product endpoints should be versioned under `/api/v1`.
 | POST | `/projects/{id}/contribute` | Contribute to a shared project |
 | POST | `/projects/{id}/like` | Thank/like a contribution |
 | GET | `/feed` | Social feed |
-| POST | `/parties` | Create party |
-| POST | `/parties/{id}/join` | Join party |
-| POST | `/events/{id}/start` | Start party event |
+| GET | `/exam` | Current Exam definition + current user party/run state |
+| POST | `/parties/queue` | Queue for Exam and autofill into a party |
+| POST | `/parties/{id}/ready` | Set readiness; final ready auto-starts Exam |
+| POST | `/parties/{id}/leave` | Leave active Exam party |
 | GET | `/quests` | Daily/weekly quests |
 | POST | `/quests/{id}/claim` | Claim quest reward |
 | POST | `/notifications/write-access` | Store bot write-access status |

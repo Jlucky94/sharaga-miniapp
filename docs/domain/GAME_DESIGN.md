@@ -80,6 +80,13 @@ Rules:
 - both outcomes should write to social space;
 - rewards must be idempotent.
 
+BUILD-P3 implementation note:
+
+- the active MVP path is queue + autofill, not manual invites;
+- once the party is full, players pass through a ready check;
+- when every member is ready, the Exam starts automatically and resolves immediately;
+- the Exam has no extra energy cost or cooldown in BUILD-P3.
+
 Example role effects:
 
 - `botan`: lowers chance of critical failure;

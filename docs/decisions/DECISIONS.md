@@ -134,3 +134,21 @@ Consequences:
 - `apps/api` and `apps/web` both depend on `@sharaga/contracts`;
 - Docker build context must include `packages/`;
 - `packages/game-core` remains postponed until formulas are reused enough to justify extraction.
+
+## 2026-04-22 - BUILD-P3 uses queue + autofill Exam parties with one feed result
+
+Decision: implement the cooperative Exam as a queue-based autofill flow with readiness and automatic start, store resolved runs in first-class tables, and publish exactly one shared feed entry per completed run.
+
+Rationale:
+
+- Queue + autofill gives BUILD-P3 one reliable party-assembly path without introducing invite links, public party browsers, or a scheduler.
+- `ExamRun` + `ExamReward` make one-time completion and reward writes auditable and idempotent without overloading `ProfileEvent` with authoritative state.
+- A single `exam_completed` feed item keeps the shared social surface readable; writing one line per participant would spam the feed.
+- Keeping Exam formulas in `apps/api/src/exam.ts` matches the current reuse boundary: one consumer, deterministic tests, no need for `packages/game-core` yet.
+
+Consequences:
+
+- Prisma gains `Party`, `PartyMember`, `ExamRun`, and `ExamReward`.
+- API gains `/api/v1/exam`, `/api/v1/parties/queue`, `/api/v1/parties/:id/ready`, and `/api/v1/parties/:id/leave`.
+- Web gains a new `Экзамен` tab and queue/ready/result states.
+- Manual invite flows and public party browsing stay out of scope for BUILD-P3.

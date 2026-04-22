@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { PrismaClient, type Prisma } from '@prisma/client';
-import type { FeedItem, PublicUser } from '@sharaga/contracts';
+import type { Archetype, FeedItem, PublicUser } from '@sharaga/contracts';
 
 // After BUILD-P2 migration runs, the Prisma client will include these models.
 // Until then, we cast to bypass the stale generated types.
@@ -11,6 +11,13 @@ type AnyPrisma = PrismaClient & {
 };
 
 import type { TelegramUserPayload } from './auth.js';
+import {
+  applyExamRewardToProfile,
+  computeExamOutcome,
+  getExamDefinition,
+  type StoredExamParty,
+  type StoredExamPartyMember
+} from './exam.js';
 import { getInitialProfile, type StoredPlayer, type StoredProfile } from './profile.js';
 import {
   applyReputationDelta,
@@ -26,7 +33,8 @@ export type ProfileEventType =
   | 'project.unlocked'
   | 'benefit.claimed'
   | 'contribution.liked'
-  | 'reputation.gained';
+  | 'reputation.gained'
+  | 'exam.completed';
 
 export type ProfileEventRecord = {
   id: string;
@@ -80,6 +88,26 @@ export type ContributeResult = {
   contributorsAtUnlock?: string[];
 };
 
+export type StoredExamReward = {
+  userId: string;
+  profileXp: number;
+  archetypeXp: number;
+  softCurrency: number;
+  reputation: number;
+};
+
+export type StoredExamRun = {
+  id: string;
+  partyId: string;
+  resolvedByUserId: string;
+  successChancePct: number;
+  rollPct: number;
+  outcome: 'success' | 'partial_failure';
+  summary: string;
+  rewards: StoredExamReward[];
+  resolvedAt: Date;
+};
+
 export type AppStore = {
   close?: () => Promise<void>;
   authenticateTelegramUser: (
@@ -115,6 +143,10 @@ export type AppStore = {
     fromUserId: string;
     now: Date;
   }) => Promise<{ like: StoredContributionLike; toUserId: string }>;
+  getExamState: (args: { userId: string }) => Promise<{ exam: ReturnType<typeof getExamDefinition>; party: StoredExamParty | null; latestRun: StoredExamRun | null }>;
+  queueForExam: (args: { userId: string; capacity: 3 | 4 | 5; now: Date }) => Promise<StoredExamParty>;
+  setPartyReady: (args: { partyId: string; userId: string; ready: boolean; now: Date }) => Promise<{ party: StoredExamParty | null; run: StoredExamRun | null }>;
+  leaveParty: (args: { partyId: string; userId: string; now: Date }) => Promise<StoredExamParty | null>;
   getContributionById: (id: string) => Promise<StoredContribution | null>;
   listFeed: (args: { limit: number; cursor?: FeedCursor }) => Promise<FeedRecord[]>;
   listProjectContributorIds: (projectId: string) => Promise<string[]>;
@@ -206,7 +238,8 @@ const prismaEventTypeMap: Record<ProfileEventType, string> = {
   'project.unlocked': 'project_unlocked',
   'benefit.claimed': 'benefit_claimed',
   'contribution.liked': 'contribution_liked',
-  'reputation.gained': 'reputation_gained'
+  'reputation.gained': 'reputation_gained',
+  'exam.completed': 'exam_completed'
 };
 
 const reverseEventTypeMap: Record<string, ProfileEventType> = Object.fromEntries(
@@ -222,7 +255,8 @@ function toPrismaEventType(eventType: ProfileEventType) {
     | 'project_unlocked'
     | 'benefit_claimed'
     | 'contribution_liked'
-    | 'reputation_gained';
+    | 'reputation_gained'
+    | 'exam_completed';
 }
 
 function fromPrismaEventType(eventType: string): ProfileEventType {
@@ -231,6 +265,80 @@ function fromPrismaEventType(eventType: string): ProfileEventType {
 
 function toPrismaPayload(payload: Record<string, unknown>): Prisma.InputJsonObject {
   return payload as Prisma.InputJsonObject;
+}
+
+function fromPrismaExamRun(run: {
+  id: string;
+  partyId: string;
+  resolvedByUserId: string;
+  successChancePct: number;
+  rollPct: number;
+  outcome: 'success' | 'partial_failure';
+  summary: string;
+  resolvedAt: Date;
+  rewards?: Array<{
+    userId: string;
+    profileXp: number;
+    archetypeXp: number;
+    softCurrency: number;
+    reputation: number;
+  }>;
+}): StoredExamRun {
+  return {
+    id: run.id,
+    partyId: run.partyId,
+    resolvedByUserId: run.resolvedByUserId,
+    successChancePct: run.successChancePct,
+    rollPct: run.rollPct,
+    outcome: run.outcome,
+    summary: run.summary,
+    rewards: (run.rewards ?? []).map((reward) => ({
+      userId: reward.userId,
+      profileXp: reward.profileXp,
+      archetypeXp: reward.archetypeXp,
+      softCurrency: reward.softCurrency,
+      reputation: reward.reputation
+    })),
+    resolvedAt: run.resolvedAt
+  };
+}
+
+function fromPrismaParty(args: {
+  party: {
+    id: string;
+    ownerUserId: string;
+    capacity: 3 | 4 | 5;
+    status: 'queueing' | 'ready_check' | 'completed' | 'cancelled';
+    createdAt: Date;
+    updatedAt: Date;
+  };
+  members: Array<{
+    userId: string;
+    archetypeSnapshot: Archetype;
+    joinedAt: Date;
+    readyAt: Date | null;
+    profile: { user: { firstName: string } };
+  }>;
+  currentUserId: string;
+}): StoredExamParty {
+  return {
+    id: args.party.id,
+    ownerUserId: args.party.ownerUserId,
+    capacity: args.party.capacity,
+    status: args.party.status,
+    memberCount: args.members.length,
+    members: args.members.map((member) => ({
+      userId: member.userId,
+      firstName: member.profile.user.firstName,
+      archetype: member.archetypeSnapshot,
+      joinedAt: member.joinedAt,
+      readyAt: member.readyAt,
+      isOwner: member.userId === args.party.ownerUserId,
+      isCurrentUser: member.userId === args.currentUserId
+    })),
+    createdAt: args.party.createdAt,
+    updatedAt: args.party.updatedAt
+  };
 }
 
 // ─── Prisma store ─────────────────────────────────────────────────────────────
@@ -258,6 +366,29 @@ export function createPrismaStore(databaseUrl: string): AppStore {
   // Access new BUILD-P2 models through AnyPrisma cast until client is regenerated after migration
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = prisma as AnyPrisma;
+
+  async function loadParty(partyId: string, currentUserId: string): Promise<StoredExamParty | null> {
+    const party = await db.party.findUnique({
+      where: { id: partyId },
+      include: {
+        members: {
+          include: { profile: { include: { user: true } } },
+          orderBy: { joinedAt: 'asc' }
+        }
+      }
+    });
+
+    if (!party) return null;
+    return fromPrismaParty({ party, members: party.members, currentUserId });
+  }
+
+  async function findActivePartyRecordForUser(userId: string) {
+    return db.partyMember.findFirst({
+      where: { userId, party: { status: { in: ['queueing', 'ready_check'] } } },
+      include: { party: true },
+      orderBy: { joinedAt: 'desc' }
+    });
+  }
 
   return {
     close: async () => {
@@ -666,6 +797,355 @@ export function createPrismaStore(databaseUrl: string): AppStore {
       }
     },
 
+    getExamState: async ({ userId }) => {
+      const activeMembership = await findActivePartyRecordForUser(userId);
+      const party = activeMembership ? await loadParty(activeMembership.partyId, userId) : null;
+      const latestReward = await db.examReward.findFirst({
+        where: { userId },
+        include: { run: { include: { rewards: true } } },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      return {
+        exam: getExamDefinition(),
+        party,
+        latestRun: latestReward ? fromPrismaExamRun(latestReward.run) : null
+      };
+    },
+
+    queueForExam: async ({ userId, capacity, now }) => {
+      const activeMembership = await findActivePartyRecordForUser(userId);
+      if (activeMembership) {
+        return (await loadParty(activeMembership.partyId, userId))!;
+      }
+
+      const player = await prisma.profile.findUnique({ where: { userId } });
+      if (!player?.archetype) {
+        throw new Error('ARCHETYPE_REQUIRED');
+      }
+
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const openParties = await db.party.findMany({
+          where: { status: 'queueing', capacity },
+          include: { members: true },
+          orderBy: { createdAt: 'asc' }
+        });
+        const openParty = openParties
+          .filter((party: { members: unknown[]; capacity: number }) => party.members.length < party.capacity)
+          .sort((left: { members: unknown[]; createdAt: Date }, right: { members: unknown[]; createdAt: Date }) =>
+            right.members.length - left.members.length || left.createdAt.getTime() - right.createdAt.getTime()
+          )[0];
+
+        if (!openParty) {
+          const created = await db.party.create({
+            data: {
+              ownerUserId: userId,
+              capacity,
+              status: 'queueing',
+              createdAt: now,
+              updatedAt: now,
+              members: {
+                create: {
+                  userId,
+                  archetypeSnapshot: player.archetype,
+                  joinedAt: now
+                }
+              }
+            }
+          });
+
+          return (await loadParty(created.id, userId))!;
+        }
+
+        const joined = await prisma.$transaction(async (txRaw) => {
+          const tx = txRaw as AnyPrisma;
+          const fresh = await tx.party.findUnique({
+            where: { id: openParty.id },
+            include: { members: true }
+          });
+
+          if (!fresh || fresh.status !== 'queueing') {
+            throw new Error('QUEUE_RETRY');
+          }
+
+          if (fresh.members.some((member: { userId: string }) => member.userId === userId)) {
+            return fresh.id;
+          }
+
+          if (fresh.members.length >= fresh.capacity) {
+            throw new Error('QUEUE_RETRY');
+          }
+
+          await tx.partyMember.create({
+            data: {
+              partyId: fresh.id,
+              userId,
+              archetypeSnapshot: player.archetype,
+              joinedAt: now
+            }
+          });
+
+          const nextCount = fresh.members.length + 1;
+          await tx.party.update({
+            where: { id: fresh.id },
+            data: {
+              status: nextCount >= fresh.capacity ? 'ready_check' : 'queueing',
+              updatedAt: now
+            }
+          });
+
+          return fresh.id;
+        }).catch((error: unknown) => {
+          if (error instanceof Error && error.message === 'QUEUE_RETRY') {
+            return null;
+          }
+          throw error;
+        });
+
+        if (joined) {
+          return (await loadParty(joined, userId))!;
+        }
+      }
+
+      throw Object.assign(new Error('QUEUE_BUSY'), { statusCode: 503 });
+    },
+
+    setPartyReady: async ({ partyId, userId, ready, now }) => {
+      const result = await prisma.$transaction(async (txRaw) => {
+        const tx = txRaw as AnyPrisma;
+        const membership = await tx.partyMember.findFirst({
+          where: { partyId, userId },
+          include: {
+            party: {
+              include: {
+                members: {
+                  include: { profile: { include: { user: true } } },
+                  orderBy: { joinedAt: 'asc' }
+                },
+                run: { include: { rewards: true } }
+              }
+            }
+          }
+        });
+
+        if (!membership) {
+          throw new Error('PARTY_NOT_FOUND');
+        }
+
+        const party = membership.party;
+
+        if (party.run) {
+          return { party: null, run: fromPrismaExamRun(party.run) };
+        }
+
+        if (party.status !== 'queueing' && party.status !== 'ready_check') {
+          throw new Error('PARTY_NOT_ACTIVE');
+        }
+
+        await tx.partyMember.update({
+          where: { id: membership.id },
+          data: { readyAt: ready ? now : null }
+        });
+
+        const reloaded = await tx.party.findUnique({
+          where: { id: partyId },
+          include: {
+            members: {
+              include: { profile: { include: { user: true } } },
+              orderBy: { joinedAt: 'asc' }
+            },
+            run: { include: { rewards: true } }
+          }
+        });
+
+        if (!reloaded) {
+          throw new Error('PARTY_NOT_FOUND');
+        }
+
+        const nextStatus = reloaded.members.length >= reloaded.capacity ? 'ready_check' : 'queueing';
+        if (reloaded.status !== nextStatus) {
+          await tx.party.update({
+            where: { id: reloaded.id },
+            data: { status: nextStatus, updatedAt: now }
+          });
+        }
+
+        const everyoneReady =
+          reloaded.members.length === reloaded.capacity &&
+          reloaded.members.every((member: { readyAt: Date | null }) => member.readyAt !== null);
+
+        if (!everyoneReady) {
+          return {
+            party: fromPrismaParty({
+              party: { ...reloaded, status: nextStatus },
+              members: reloaded.members,
+              currentUserId: userId
+            }),
+            run: null
+          };
+        }
+
+        const seed = `${reloaded.id}:${now.toISOString()}`;
+        const computed = computeExamOutcome(
+          reloaded.members.map((member: { userId: string; archetypeSnapshot: Archetype }) => ({
+            userId: member.userId,
+            archetype: member.archetypeSnapshot
+          })),
+          seed
+        );
+
+        const run = await tx.examRun.create({
+          data: {
+            partyId: reloaded.id,
+            resolvedByUserId: userId,
+            seed,
+            successChancePct: computed.successChancePct,
+            rollPct: computed.rollPct,
+            outcome: computed.outcome,
+            summary: computed.summary,
+            resolvedAt: now
+          }
+        });
+
+        for (const reward of computed.rewards) {
+          const profile = await tx.profile.findUnique({ where: { userId: reward.userId } });
+          if (!profile) continue;
+
+          const nextProfile = applyExamRewardToProfile(fromPrismaProfile(profile), {
+            profileXp: reward.profileXp,
+            archetypeXp: reward.archetypeXp,
+            softCurrency: reward.softCurrency,
+            reputation: reward.reputation
+          }, now);
+
+          await tx.profile.update({
+            where: { userId: reward.userId },
+            data: {
+              level: nextProfile.level,
+              profileXp: nextProfile.profileXp,
+              archetypeXp: nextProfile.archetypeXp,
+              softCurrency: nextProfile.softCurrency,
+              reputation: nextProfile.reputation,
+              updatedAt: now
+            } as any
+          });
+
+          await tx.examReward.create({
+            data: {
+              examRunId: run.id,
+              userId: reward.userId,
+              profileXp: reward.profileXp,
+              archetypeXp: reward.archetypeXp,
+              softCurrency: reward.softCurrency,
+              reputation: reward.reputation,
+              createdAt: now
+            }
+          });
+        }
+
+        await tx.party.update({
+          where: { id: reloaded.id },
+          data: { status: 'completed', updatedAt: now }
+        });
+
+        await tx.profileEvent.create({
+          data: {
+            userId: reloaded.ownerUserId,
+            eventType: 'exam_completed',
+            payload: {
+              examRunId: run.id,
+              partyId: reloaded.id,
+              memberFirstNames: reloaded.members.map((member: { profile: { user: { firstName: string } } }) => member.profile.user.firstName),
+              outcome: computed.outcome,
+              summary: computed.summary
+            },
+            createdAt: now
+          } as any
+        });
+
+        const rewards = await tx.examReward.findMany({ where: { examRunId: run.id } });
+        return { party: null, run: fromPrismaExamRun({ ...run, rewards }) };
+      });
+
+      return result;
+    },
+
+    leaveParty: async ({ partyId, userId, now }) => {
+      return prisma.$transaction(async (txRaw) => {
+        const tx = txRaw as AnyPrisma;
+        const membership = await tx.partyMember.findFirst({
+          where: { partyId, userId },
+          include: {
+            party: {
+              include: {
+                members: {
+                  include: { profile: { include: { user: true } } },
+                  orderBy: { joinedAt: 'asc' }
+                },
+                run: true
+              }
+            }
+          }
+        });
+
+        if (!membership) {
+          throw new Error('PARTY_NOT_FOUND');
+        }
+
+        if (membership.party.run || membership.party.status === 'completed' || membership.party.status === 'cancelled') {
+          throw new Error('PARTY_NOT_ACTIVE');
+        }
+
+        await tx.partyMember.delete({ where: { id: membership.id } });
+        const members = (await tx.partyMember.findMany({
+          where: { partyId },
+          include: { profile: { include: { user: true } } },
+          orderBy: { joinedAt: 'asc' }
+        })) as Array<{
+          userId: string;
+          archetypeSnapshot: Archetype;
+          joinedAt: Date;
+          readyAt: Date | null;
+          profile: { user: { firstName: string } };
+        }>;
+
+        if (members.length === 0) {
+          await tx.party.update({
+            where: { id: partyId },
+            data: { status: 'cancelled', updatedAt: now }
+          });
+          return null;
+        }
+
+        const nextOwnerId = membership.party.ownerUserId === userId ? members[0]!.userId : membership.party.ownerUserId;
+        const nextStatus = members.length >= membership.party.capacity ? 'ready_check' : 'queueing';
+
+        await tx.party.update({
+          where: { id: partyId },
+          data: { ownerUserId: nextOwnerId, status: nextStatus, updatedAt: now }
+        });
+
+        if (nextStatus === 'queueing') {
+          await tx.partyMember.updateMany({
+            where: { partyId },
+            data: { readyAt: null }
+          });
+          for (const member of members) member.readyAt = null;
+        }
+
+        return fromPrismaParty({
+          party: {
+            ...membership.party,
+            ownerUserId: nextOwnerId,
+            status: nextStatus,
+            updatedAt: now
+          },
+          members,
+          currentUserId: userId
+        });
+      });
+    },
+
     getContributionById: async (id) => {
       const c = await db.contribution.findUnique({ where: { id } });
       return c ?? null;
@@ -676,12 +1156,13 @@ export function createPrismaStore(databaseUrl: string): AppStore {
         'project_contributed',
         'project_unlocked',
         'benefit_claimed',
-        'contribution_liked'
+        'contribution_liked',
+        'exam_completed'
       ] as const;
 
-      const events = await prisma.profileEvent.findMany({
+      const events = await db.profileEvent.findMany({
         where: {
-          eventType: { in: feedEventTypes as unknown as typeof feedEventTypes[number][] },
+          eventType: { in: [...feedEventTypes] as any },
           ...(cursor
             ? {
                 OR: [
@@ -694,7 +1175,14 @@ export function createPrismaStore(databaseUrl: string): AppStore {
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: limit,
         include: { profile: { include: { user: true } } }
-      });
+      }) as Array<{
+        id: string;
+        userId: string;
+        createdAt: Date;
+        eventType: string;
+        payload: Record<string, unknown>;
+        profile: { user: { firstName: string } };
+      }>;
 
       // Batch-load projects referenced in payloads
       const projectIds = [...new Set(
@@ -779,6 +1267,29 @@ export function createPrismaStore(databaseUrl: string): AppStore {
               }
             });
           }
+        } else if (e.eventType === 'exam_completed') {
+          const examRunId = payload.examRunId as string | undefined;
+          const partyId = payload.partyId as string | undefined;
+          const memberFirstNames = payload.memberFirstNames as string[] | undefined;
+          const outcome = payload.outcome as 'success' | 'partial_failure' | undefined;
+          const summary = payload.summary as string | undefined;
+          if (examRunId && partyId && memberFirstNames && outcome && summary) {
+            items.push({
+              cursorId: e.id,
+              createdAt: e.createdAt,
+              item: {
+                kind: 'exam_result',
+                id: e.id,
+                examRunId,
+                partyId,
+                ownerFirstName: userFirstName,
+                memberFirstNames,
+                outcome,
+                summary,
+                createdAt: e.createdAt.toISOString()
+              }
+            });
+          }
         }
       }
 
@@ -809,6 +1320,8 @@ export class InMemoryAppStore implements AppStore {
   private readonly benefitClaims = new Map<string, StoredBenefitClaim>();
   private readonly likes = new Map<string, StoredContributionLike>();
   private readonly projectMutex = new Map<string, Promise<void>>();
+  private readonly parties = new Map<string, StoredExamParty>();
+  private readonly examRuns = new Map<string, StoredExamRun>();
 
   private nextProject(kind: 'notes' | 'gym' | 'festival', threshold: number, affinity: 'botan' | 'sportsman' | 'partygoer'): StoredProject {
     const id = randomUUID();
@@ -1073,13 +1586,180 @@ export class InMemoryAppStore implements AppStore {
     return { like, toUserId: contrib.userId };
   }
 
+  async getExamState(args: { userId: string }) {
+    const party = this.findActivePartyForUser(args.userId);
+    const latestRun = [...this.examRuns.values()]
+      .filter((run) => run.rewards.some((reward) => reward.userId === args.userId))
+      .sort((left, right) => right.resolvedAt.getTime() - left.resolvedAt.getTime())[0] ?? null;
+
+    return {
+      exam: getExamDefinition(),
+      party,
+      latestRun
+    };
+  }
+
+  async queueForExam(args: { userId: string; capacity: 3 | 4 | 5; now: Date }) {
+    const existing = this.findActivePartyForUser(args.userId);
+    if (existing) return existing;
+
+    const profile = this.profilesByUserId.get(args.userId);
+    if (!profile?.archetype) throw new Error('ARCHETYPE_REQUIRED');
+
+    const candidate = [...this.parties.values()]
+      .filter((party) => party.status === 'queueing' && party.capacity === args.capacity && party.memberCount < party.capacity)
+      .sort((left, right) => right.memberCount - left.memberCount || left.createdAt.getTime() - right.createdAt.getTime())[0];
+
+    if (!candidate) {
+      const user = this.usersById.get(args.userId)!;
+      const created: StoredExamParty = {
+        id: randomUUID(),
+        ownerUserId: args.userId,
+        capacity: args.capacity,
+        status: 'queueing',
+        memberCount: 1,
+        members: [{
+          userId: args.userId,
+          firstName: user.firstName,
+          archetype: profile.archetype,
+          joinedAt: args.now,
+          readyAt: null,
+          isOwner: true,
+          isCurrentUser: true
+        }],
+        createdAt: args.now,
+        updatedAt: args.now
+      };
+      this.parties.set(created.id, created);
+      return created;
+    }
+
+    const user = this.usersById.get(args.userId)!;
+    candidate.members.push({
+      userId: args.userId,
+      firstName: user.firstName,
+      archetype: profile.archetype,
+      joinedAt: args.now,
+      readyAt: null,
+      isOwner: false,
+      isCurrentUser: true
+    });
+    candidate.memberCount = candidate.members.length;
+    candidate.status = candidate.memberCount >= candidate.capacity ? 'ready_check' : 'queueing';
+    candidate.updatedAt = args.now;
+    this.normalizeParty(candidate, args.userId);
+    return candidate;
+  }
+
+  async setPartyReady(args: { partyId: string; userId: string; ready: boolean; now: Date }) {
+    const party = this.parties.get(args.partyId);
+    if (!party) throw new Error('PARTY_NOT_FOUND');
+
+    const member = party.members.find((entry) => entry.userId === args.userId);
+    if (!member) throw new Error('PARTY_NOT_FOUND');
+
+    if (party.status === 'completed' || party.status === 'cancelled') {
+      const run = [...this.examRuns.values()].find((entry) => entry.partyId === party.id) ?? null;
+      return { party: null, run };
+    }
+
+    member.readyAt = args.ready ? args.now : null;
+    party.status = party.memberCount >= party.capacity ? 'ready_check' : 'queueing';
+    party.updatedAt = args.now;
+    this.normalizeParty(party, args.userId);
+
+    const everyoneReady = party.memberCount === party.capacity && party.members.every((entry) => entry.readyAt !== null);
+    if (!everyoneReady) {
+      return { party, run: null };
+    }
+
+    const existingRun = [...this.examRuns.values()].find((entry) => entry.partyId === party.id);
+    if (existingRun) return { party: null, run: existingRun };
+
+    const seed = `${party.id}:${args.now.toISOString()}`;
+    const computed = computeExamOutcome(
+      party.members.map((entry) => ({ userId: entry.userId, archetype: entry.archetype })),
+      seed
+    );
+    const run: StoredExamRun = {
+      id: randomUUID(),
+      partyId: party.id,
+      resolvedByUserId: args.userId,
+      successChancePct: computed.successChancePct,
+      rollPct: computed.rollPct,
+      outcome: computed.outcome,
+      summary: computed.summary,
+      rewards: computed.rewards,
+      resolvedAt: args.now
+    };
+
+    for (const reward of computed.rewards) {
+      const profile = this.profilesByUserId.get(reward.userId);
+      if (!profile) continue;
+      this.profilesByUserId.set(
+        reward.userId,
+        applyExamRewardToProfile(profile, {
+          profileXp: reward.profileXp,
+          archetypeXp: reward.archetypeXp,
+          softCurrency: reward.softCurrency,
+          reputation: reward.reputation
+        }, args.now)
+      );
+    }
+
+    party.status = 'completed';
+    party.updatedAt = args.now;
+    this.pushEvent({
+      userId: party.ownerUserId,
+      eventType: 'exam.completed',
+      payload: {
+        examRunId: run.id,
+        partyId: party.id,
+        memberFirstNames: party.members.map((entry) => entry.firstName),
+        outcome: run.outcome,
+        summary: run.summary
+      },
+      createdAt: args.now
+    });
+    this.examRuns.set(run.id, run);
+
+    return { party: null, run };
+  }
+
+  async leaveParty(args: { partyId: string; userId: string; now: Date }) {
+    const party = this.parties.get(args.partyId);
+    if (!party) throw new Error('PARTY_NOT_FOUND');
+    if (party.status === 'completed' || party.status === 'cancelled') throw new Error('PARTY_NOT_ACTIVE');
+
+    party.members = party.members.filter((entry) => entry.userId !== args.userId);
+    party.memberCount = party.members.length;
+    party.updatedAt = args.now;
+
+    if (party.memberCount === 0) {
+      party.status = 'cancelled';
+      return null;
+    }
+
+    if (party.ownerUserId === args.userId) {
+      party.ownerUserId = party.members[0]!.userId;
+    }
+
+    if (party.memberCount < party.capacity) {
+      party.status = 'queueing';
+      for (const entry of party.members) entry.readyAt = null;
+    }
+
+    this.normalizeParty(party, args.userId);
+    return party;
+  }
+
   async getContributionById(id: string) {
     return this.contributions.get(id) ?? null;
   }
 
   async listFeed(args: { limit: number; cursor?: FeedCursor }): Promise<FeedRecord[]> {
     const { limit, cursor } = args;
-    const feedTypes: ProfileEventType[] = ['project.contributed', 'project.unlocked', 'benefit.claimed', 'contribution.liked'];
+    const feedTypes: ProfileEventType[] = ['project.contributed', 'project.unlocked', 'benefit.claimed', 'contribution.liked', 'exam.completed'];
 
     const allEvents: ProfileEventRecord[] = [];
     for (const events of this.eventsByUserId.values()) {
@@ -1136,6 +1816,19 @@ export class InMemoryAppStore implements AppStore {
             item: { kind: 'like', id: e.id, userId: e.userId, userFirstName, contributionId, projectTitle, createdAt: e.createdAt.toISOString() }
           });
         }
+      } else if (e.eventType === 'exam.completed') {
+        const examRunId = payload.examRunId as string | undefined;
+        const partyId = payload.partyId as string | undefined;
+        const memberFirstNames = payload.memberFirstNames as string[] | undefined;
+        const outcome = payload.outcome as 'success' | 'partial_failure' | undefined;
+        const summary = payload.summary as string | undefined;
+        if (examRunId && partyId && memberFirstNames && outcome && summary) {
+          items.push({
+            cursorId: e.id,
+            createdAt: e.createdAt,
+            item: { kind: 'exam_result', id: e.id, examRunId, partyId, ownerFirstName: userFirstName, memberFirstNames, outcome, summary, createdAt: e.createdAt.toISOString() }
+          });
+        }
       }
     }
 
@@ -1146,6 +1839,26 @@ export class InMemoryAppStore implements AppStore {
     return [...new Set(
       [...this.contributions.values()].filter((c) => c.projectId === projectId).map((c) => c.userId)
     )];
+  }
+
+  private findActivePartyForUser(userId: string) {
+    const party = [...this.parties.values()].find((entry) =>
+      (entry.status === 'queueing' || entry.status === 'ready_check') &&
+      entry.members.some((member) => member.userId === userId)
+    ) ?? null;
+
+    if (!party) return null;
+    this.normalizeParty(party, userId);
+    return party;
+  }
+
+  private normalizeParty(party: StoredExamParty, currentUserId: string) {
+    party.memberCount = party.members.length;
+    party.members.sort((left, right) => left.joinedAt.getTime() - right.joinedAt.getTime());
+    for (const member of party.members) {
+      member.isOwner = member.userId === party.ownerUserId;
+      member.isCurrentUser = member.userId === currentUserId;
+    }
   }
 
   private pushEvent(event: Omit<ProfileEventRecord, 'id'>) {

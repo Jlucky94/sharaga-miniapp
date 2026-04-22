@@ -4,6 +4,7 @@ import { ArchetypePicker } from '../features/home/ArchetypePicker.js';
 import { HomeScreen } from '../features/home/HomeScreen.js';
 import { StatusPanel } from '../features/home/StatusPanel.js';
 import { FeedScreen } from '../features/feed/FeedScreen.js';
+import { ExamScreen } from '../features/exam/ExamScreen.js';
 import { ProjectsScreen } from '../features/projects/ProjectsScreen.js';
 import { Tabs, type TabId } from './Tabs.js';
 import { useAppState } from './useAppState.js';
@@ -63,6 +64,12 @@ export function App() {
       )}
       {activeTab === 'projects' && (
         <ProjectsScreen
+          accessToken={state.accessToken}
+          onProfileUpdate={() => void refreshProfileState(state.accessToken)}
+        />
+      )}
+      {activeTab === 'exam' && (
+        <ExamScreen
           accessToken={state.accessToken}
           onProfileUpdate={() => void refreshProfileState(state.accessToken)}
         />

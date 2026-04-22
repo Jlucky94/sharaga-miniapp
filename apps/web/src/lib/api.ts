@@ -2,7 +2,11 @@ import type {
   ActionId,
   ActionResult,
   Archetype,
+  ExamParty,
+  ExamRunResult,
+  ExamState,
   FeedItem,
+  PartyCapacity,
   ProfileResponse,
   Project
 } from '@sharaga/contracts';
@@ -169,4 +173,65 @@ export async function getFeed(
   }
 
   return (await response.json()) as { items: FeedItem[]; nextCursor: string | null };
+}
+
+export async function getExamState(accessToken: string): Promise<ExamState> {
+  const response = await apiFetch('/api/v1/exam', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+
+  if (!response.ok) {
+    const error = (await readJson(response)) as ApiError | null;
+    throw new Error(error?.message ?? 'Не удалось загрузить экзамен');
+  }
+
+  return (await response.json()) as ExamState;
+}
+
+export async function queueForExam(accessToken: string, capacity: PartyCapacity): Promise<{ party: ExamParty }> {
+  const response = await apiFetch('/api/v1/parties/queue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ capacity })
+  });
+
+  if (!response.ok) {
+    const error = (await readJson(response)) as ApiError | null;
+    throw new Error(error?.message ?? 'Не удалось встать в очередь');
+  }
+
+  return (await response.json()) as { party: ExamParty };
+}
+
+export async function setPartyReady(
+  accessToken: string,
+  partyId: string,
+  ready: boolean
+): Promise<{ party: ExamParty | null; run: ExamRunResult | null }> {
+  const response = await apiFetch(`/api/v1/parties/${partyId}/ready`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ ready })
+  });
+
+  if (!response.ok) {
+    const error = (await readJson(response)) as ApiError | null;
+    throw new Error(error?.message ?? 'Не удалось обновить готовность');
+  }
+
+  return (await response.json()) as { party: ExamParty | null; run: ExamRunResult | null };
+}
+
+export async function leaveParty(accessToken: string, partyId: string): Promise<{ party: ExamParty | null }> {
+  const response = await apiFetch(`/api/v1/parties/${partyId}/leave`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+
+  if (!response.ok) {
+    const error = (await readJson(response)) as ApiError | null;
+    throw new Error(error?.message ?? 'Не удалось выйти из пати');
+  }
+
+  return (await response.json()) as { party: ExamParty | null };
 }

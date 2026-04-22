@@ -22,6 +22,19 @@ enum ProfileEventType {
   benefit_claimed
   contribution_liked
   reputation_gained
+  exam_completed
+}
+
+enum PartyStatus {
+  queueing
+  ready_check
+  completed
+  cancelled
+}
+
+enum ExamOutcome {
+  success
+  partial_failure
 }
 
 enum ProjectKind {
@@ -61,6 +74,9 @@ model Profile {
   events          ProfileEvent[]
   contributions   Contribution[]
   benefitClaims   BenefitClaim[]
+  partyMembers    PartyMember[]
+  examRewards     ExamReward[]
+  ownedParties     Party[]      @relation("PartyOwner")
 
   @@map("profiles")
 }
@@ -136,4 +152,69 @@ model ContributionLike {
 
   @@unique([contributionId, fromUserId])
   @@map("contribution_likes")
+}
+
+model Party {
+  id          String       @id @default(uuid()) @db.Uuid
+  ownerUserId String       @db.Uuid
+  capacity    Int
+  status      PartyStatus  @default(queueing)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  owner       Profile      @relation("PartyOwner", fields: [ownerUserId], references: [userId], onDelete: Cascade)
+  members     PartyMember[]
+  run         ExamRun?
+
+  @@index([status, capacity, createdAt])
+  @@map("parties")
+}
+
+model PartyMember {
+  id                String    @id @default(uuid()) @db.Uuid
+  partyId           String    @db.Uuid
+  userId            String    @db.Uuid
+  archetypeSnapshot Archetype
+  joinedAt          DateTime  @default(now())
+  readyAt           DateTime?
+  party             Party     @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  profile           Profile   @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([partyId, userId])
+  @@index([userId])
+  @@index([partyId, joinedAt])
+  @@map("party_members")
+}
+
+model ExamRun {
+  id               String       @id @default(uuid()) @db.Uuid
+  partyId          String       @unique @db.Uuid
+  resolvedByUserId String       @db.Uuid
+  seed             String
+  successChancePct Int
+  rollPct          Int
+  outcome          ExamOutcome
+  summary          String
+  resolvedAt       DateTime     @default(now())
+  party            Party        @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  rewards          ExamReward[]
+
+  @@index([resolvedAt])
+  @@map("exam_runs")
+}
+
+model ExamReward {
+  id           String   @id @default(uuid()) @db.Uuid
+  examRunId    String   @db.Uuid
+  userId       String   @db.Uuid
+  profileXp    Int
+  archetypeXp  Int
+  softCurrency Int
+  reputation   Int
+  createdAt    DateTime @default(now())
+  run          ExamRun  @relation(fields: [examRunId], references: [id], onDelete: Cascade)
+  profile      Profile  @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([examRunId, userId])
+  @@index([userId, createdAt])
+  @@map("exam_rewards")
 }

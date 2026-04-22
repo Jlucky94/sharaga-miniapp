@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type TabId = 'home' | 'projects' | 'feed';
+export type TabId = 'home' | 'projects' | 'exam' | 'feed';
 
 export function Tabs({ active, onChange }: { active: TabId; onChange: (tab: TabId) => void }) {
   return (
@@ -22,6 +22,12 @@ export function Tabs({ active, onChange }: { active: TabId; onChange: (tab: TabI
         onClick={() => onChange('feed')}
       >
         Лента
+      </button>
+      <button
+        className={`tab-button${active === 'exam' ? ' tab-button--active' : ''}`}
+        onClick={() => onChange('exam')}
+      >
+        Экзамен
       </button>
     </nav>
   );
