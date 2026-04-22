@@ -64,19 +64,25 @@ Verify BUILD-P0, BUILD-P1, BUILD-P2, and BUILD-P3 cumulatively so we can honestl
 
 ## Last verification
 
-Date: 2026-04-22
+Date: 2026-04-22 (re-run)
 
 Commands run (from repo root unless noted):
 
-- `pnpm install` ✅ — workspace already up to date; repo-local Prisma client regenerated, with Windows lock fallback exercised successfully.
+- `pnpm install` ✅ — workspace already up to date; Prisma client regenerated with engine (DLL unlocked after prior session ended).
 - `pnpm check` ✅ — zero TypeScript errors across contracts, API, and web.
 - `pnpm test` ✅ — 39 API tests + 4 contract tests pass, 0 fail.
 - `pnpm build` ✅ — contracts, API, and web compile; web production bundle built successfully.
 - `docker compose up -d db` ✅ — local PostgreSQL service reachable.
-- `pnpm --filter @sharaga/api prisma:migrate:deploy` ✅ — BUILD-P3 migration applied to live PostgreSQL.
+- `pnpm --filter @sharaga/api prisma:migrate:deploy` ✅ — no pending migrations, schema current.
 - `pnpm --filter @sharaga/api prisma:seed` ✅ — 3 campus projects upserted.
-- `pnpm --filter @sharaga/web gen:init-data` x3 ✅ — distinct dev initData generated for Alice/Bob/Cora.
-- live three-account PostgreSQL API smoke ✅ — queue -> full party -> all ready -> auto-start -> rewards persist -> non-owner feed sees one `exam_result` -> repeated final `ready` stays idempotent.
+- `pnpm --filter @sharaga/web gen:init-data` x3 ✅ — distinct dev initData generated for Alice(81001)/Bob(81002)/Cora(81003).
+- `node apps/api/scripts/smoke-c3.mjs` ✅ — all 7 smoke points passed against live PostgreSQL:
+  - queue → full party (ready_check) ✅
+  - all ready → auto-start → outcome `success`, 3 rewards ✅
+  - all three profiles show XP > 0 after run ✅
+  - `/exam` latestRun.partyId matches current party ✅
+  - owner and non-owner (Bob) each see exactly 1 `exam_result` for current partyId ✅
+  - replay final ready returns same run.id, profiles unchanged, feed not duplicated ✅
 
 Contract points verified locally:
 
@@ -86,8 +92,8 @@ Contract points verified locally:
 | Party can be created and assembled | ✅ `exam.queue.test.ts` + live PostgreSQL smoke |
 | Exam depends on role composition | ✅ `exam.unit.test.ts` |
 | Successful and partially failed paths both exist | ✅ `exam.unit.test.ts` fixed-seed cases |
-| Rewards and result records do not duplicate | ✅ `exam.scenario.test.ts` + live PostgreSQL smoke DB counts |
-| Event result appears in shared social space | ✅ `exam.scenario.test.ts` + live non-owner feed check |
+| Rewards and result records do not duplicate | ✅ `exam.scenario.test.ts` + live PostgreSQL smoke idempotency check |
+| Event result appears in shared social space | ✅ `exam.scenario.test.ts` + live non-owner (Bob) feed check |
 
 ## Next phase
 
