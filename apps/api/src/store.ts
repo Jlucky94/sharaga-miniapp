@@ -61,6 +61,17 @@ export type StoredContributionLike = {
   createdAt: Date;
 };
 
+export type FeedCursor = {
+  createdAt: Date;
+  eventId: string;
+};
+
+export type FeedRecord = {
+  cursorId: string;
+  createdAt: Date;
+  item: FeedItem;
+};
+
 export type ContributeResult = {
   contribution: StoredContribution;
   project: StoredProject;
@@ -105,7 +116,7 @@ export type AppStore = {
     now: Date;
   }) => Promise<{ like: StoredContributionLike; toUserId: string }>;
   getContributionById: (id: string) => Promise<StoredContribution | null>;
-  listFeed: (args: { limit: number; cursor?: Date }) => Promise<FeedItem[]>;
+  listFeed: (args: { limit: number; cursor?: FeedCursor }) => Promise<FeedRecord[]>;
   listProjectContributorIds: (projectId: string) => Promise<string[]>;
 };
 
@@ -671,9 +682,16 @@ export function createPrismaStore(databaseUrl: string): AppStore {
       const events = await prisma.profileEvent.findMany({
         where: {
           eventType: { in: feedEventTypes as unknown as typeof feedEventTypes[number][] },
-          ...(cursor ? { createdAt: { lt: cursor } } : {})
+          ...(cursor
+            ? {
+                OR: [
+                  { createdAt: { lt: cursor.createdAt } },
+                  { createdAt: cursor.createdAt, id: { lt: cursor.eventId } }
+                ]
+              }
+            : {})
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: limit,
         include: { profile: { include: { user: true } } }
       });
@@ -691,7 +709,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
         for (const p of projects) projectMap.set(p.id, p);
       }
 
-      const items: FeedItem[] = [];
+      const items: FeedRecord[] = [];
 
       for (const e of events) {
         const payload = e.payload as Record<string, unknown>;
@@ -703,46 +721,62 @@ export function createPrismaStore(databaseUrl: string): AppStore {
         if (e.eventType === 'project_contributed' && projectId) {
           const contribId = (payload.contributionId as string | undefined) ?? e.id;
           items.push({
-            kind: 'contribution',
-            id: contribId,
-            userId,
-            userFirstName,
-            projectId,
-            projectTitle,
-            amount: (payload.amount as number) ?? 1,
-            createdAt: e.createdAt.toISOString()
+            cursorId: e.id,
+            createdAt: e.createdAt,
+            item: {
+              kind: 'contribution',
+              id: contribId,
+              userId,
+              userFirstName,
+              projectId,
+              projectTitle,
+              amount: (payload.amount as number) ?? 1,
+              createdAt: e.createdAt.toISOString()
+            }
           });
         } else if (e.eventType === 'project_unlocked' && projectId) {
           items.push({
-            kind: 'unlock',
-            id: e.id,
-            userId,
-            userFirstName,
-            projectId,
-            projectTitle,
-            createdAt: e.createdAt.toISOString()
+            cursorId: e.id,
+            createdAt: e.createdAt,
+            item: {
+              kind: 'unlock',
+              id: e.id,
+              userId,
+              userFirstName,
+              projectId,
+              projectTitle,
+              createdAt: e.createdAt.toISOString()
+            }
           });
         } else if (e.eventType === 'benefit_claimed' && projectId) {
           items.push({
-            kind: 'benefit',
-            id: e.id,
-            userId,
-            userFirstName,
-            projectId,
-            projectTitle,
-            createdAt: e.createdAt.toISOString()
+            cursorId: e.id,
+            createdAt: e.createdAt,
+            item: {
+              kind: 'benefit',
+              id: e.id,
+              userId,
+              userFirstName,
+              projectId,
+              projectTitle,
+              createdAt: e.createdAt.toISOString()
+            }
           });
         } else if (e.eventType === 'contribution_liked') {
           const contributionId = payload.contributionId as string | undefined;
           if (contributionId) {
             items.push({
-              kind: 'like',
-              id: e.id,
-              userId,
-              userFirstName,
-              contributionId,
-              projectTitle,
-              createdAt: e.createdAt.toISOString()
+              cursorId: e.id,
+              createdAt: e.createdAt,
+              item: {
+                kind: 'like',
+                id: e.id,
+                userId,
+                userFirstName,
+                contributionId,
+                projectTitle,
+                createdAt: e.createdAt.toISOString()
+              }
             });
           }
         }
@@ -1043,7 +1077,7 @@ export class InMemoryAppStore implements AppStore {
     return this.contributions.get(id) ?? null;
   }
 
-  async listFeed(args: { limit: number; cursor?: Date }): Promise<FeedItem[]> {
+  async listFeed(args: { limit: number; cursor?: FeedCursor }): Promise<FeedRecord[]> {
     const { limit, cursor } = args;
     const feedTypes: ProfileEventType[] = ['project.contributed', 'project.unlocked', 'benefit.claimed', 'contribution.liked'];
 
@@ -1051,17 +1085,21 @@ export class InMemoryAppStore implements AppStore {
     for (const events of this.eventsByUserId.values()) {
       for (const e of events) {
         if (feedTypes.includes(e.eventType)) {
-          if (!cursor || e.createdAt < cursor) {
+          if (
+            !cursor ||
+            e.createdAt < cursor.createdAt ||
+            (e.createdAt.getTime() === cursor.createdAt.getTime() && e.id < cursor.eventId)
+          ) {
             allEvents.push(e);
           }
         }
       }
     }
 
-    allEvents.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    allEvents.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id));
     const page = allEvents.slice(0, limit);
 
-    const items: FeedItem[] = [];
+    const items: FeedRecord[] = [];
     for (const e of page) {
       const user = this.usersById.get(e.userId);
       const userFirstName = user?.firstName ?? 'Кто-то';
@@ -1072,15 +1110,31 @@ export class InMemoryAppStore implements AppStore {
 
       if (e.eventType === 'project.contributed' && projectId) {
         const contribId = (payload.contributionId as string | undefined) ?? e.id;
-        items.push({ kind: 'contribution', id: contribId, userId: e.userId, userFirstName, projectId, projectTitle, amount: (payload.amount as number) ?? 1, createdAt: e.createdAt.toISOString() });
+        items.push({
+          cursorId: e.id,
+          createdAt: e.createdAt,
+          item: { kind: 'contribution', id: contribId, userId: e.userId, userFirstName, projectId, projectTitle, amount: (payload.amount as number) ?? 1, createdAt: e.createdAt.toISOString() }
+        });
       } else if (e.eventType === 'project.unlocked' && projectId) {
-        items.push({ kind: 'unlock', id: e.id, userId: e.userId, userFirstName, projectId, projectTitle, createdAt: e.createdAt.toISOString() });
+        items.push({
+          cursorId: e.id,
+          createdAt: e.createdAt,
+          item: { kind: 'unlock', id: e.id, userId: e.userId, userFirstName, projectId, projectTitle, createdAt: e.createdAt.toISOString() }
+        });
       } else if (e.eventType === 'benefit.claimed' && projectId) {
-        items.push({ kind: 'benefit', id: e.id, userId: e.userId, userFirstName, projectId, projectTitle, createdAt: e.createdAt.toISOString() });
+        items.push({
+          cursorId: e.id,
+          createdAt: e.createdAt,
+          item: { kind: 'benefit', id: e.id, userId: e.userId, userFirstName, projectId, projectTitle, createdAt: e.createdAt.toISOString() }
+        });
       } else if (e.eventType === 'contribution.liked') {
         const contributionId = payload.contributionId as string | undefined;
         if (contributionId) {
-          items.push({ kind: 'like', id: e.id, userId: e.userId, userFirstName, contributionId, projectTitle, createdAt: e.createdAt.toISOString() });
+          items.push({
+            cursorId: e.id,
+            createdAt: e.createdAt,
+            item: { kind: 'like', id: e.id, userId: e.userId, userFirstName, contributionId, projectTitle, createdAt: e.createdAt.toISOString() }
+          });
         }
       }
     }

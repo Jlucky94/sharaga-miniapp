@@ -162,7 +162,7 @@ export const listProjectsResponseSchema = z.object({
 
 export const feedResponseSchema = z.object({
   items: z.array(feedItemSchema),
-  nextCursor: z.string().datetime().nullable()
+  nextCursor: z.string().nullable()
 });
 
 export const publicUserSchema = z.object({

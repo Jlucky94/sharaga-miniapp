@@ -127,3 +127,72 @@ test('feed respects limit parameter', async () => {
   assert.ok(body.items.length <= 2);
   await app.close();
 });
+
+test('feed pagination keeps events that share the same timestamp', async () => {
+  const { app, store, clock } = createTestApp();
+
+  const authA = await app.inject({ method: 'POST', url: '/api/v1/auth/telegram', payload: { initData: buildInitData(30) } });
+  const tokenA = (authA.json() as { accessToken: string }).accessToken;
+  await app.inject({ method: 'POST', url: '/api/v1/class/select', headers: { Authorization: `Bearer ${tokenA}` }, payload: { archetype: 'botan' } });
+
+  const authB = await app.inject({ method: 'POST', url: '/api/v1/auth/telegram', payload: { initData: buildInitData(31) } });
+  const tokenB = (authB.json() as { accessToken: string }).accessToken;
+  await app.inject({ method: 'POST', url: '/api/v1/class/select', headers: { Authorization: `Bearer ${tokenB}` }, payload: { archetype: 'sportsman' } });
+
+  const projects = await store.listProjects();
+  const notes = projects.find((p) => p.kind === 'notes')!;
+
+  for (let i = 0; i < 4; i++) {
+    clock.now = new Date(clock.now.getTime() + 31 * 60 * 1000);
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/projects/${notes.id}/contribute`,
+      headers: { Authorization: `Bearer ${tokenA}` },
+      payload: { requestId: `3300000${i}-0000-4000-8000-00000000000${i}`, amount: 1 }
+    });
+  }
+
+  clock.now = new Date('2026-04-22T13:00:00.000Z');
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/projects/${notes.id}/contribute`,
+    headers: { Authorization: `Bearer ${tokenA}` },
+    payload: { requestId: '33000004-0000-4000-8000-000000000004', amount: 1 }
+  });
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/projects/${notes.id}/claim-benefit`,
+    headers: { Authorization: `Bearer ${tokenB}` }
+  });
+
+  const firstPageRes = await app.inject({ method: 'GET', url: '/api/v1/feed?limit=2', headers: { Authorization: `Bearer ${tokenA}` } });
+  assert.equal(firstPageRes.statusCode, 200);
+  const firstPage = firstPageRes.json() as {
+    items: Array<{ kind: string; projectId?: string }>;
+    nextCursor: string | null;
+  };
+
+  assert.equal(firstPage.items.length, 2);
+  assert.ok(firstPage.nextCursor);
+
+  const secondPageRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/feed?limit=2&cursor=${encodeURIComponent(firstPage.nextCursor!)}`,
+    headers: { Authorization: `Bearer ${tokenA}` }
+  });
+  assert.equal(secondPageRes.statusCode, 200);
+  const secondPage = secondPageRes.json() as {
+    items: Array<{ kind: string; projectId?: string }>;
+    nextCursor: string | null;
+  };
+
+  const combined = [...firstPage.items, ...secondPage.items].filter((item) => item.projectId === notes.id);
+  const kinds = new Set(combined.map((item) => item.kind));
+
+  assert.ok(kinds.has('contribution'), 'combined pages should keep the contribution event');
+  assert.ok(kinds.has('unlock'), 'combined pages should keep the unlock event');
+  assert.ok(kinds.has('benefit'), 'combined pages should keep the benefit event');
+
+  await app.close();
+});

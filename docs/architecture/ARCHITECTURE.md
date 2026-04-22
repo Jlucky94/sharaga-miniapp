@@ -68,7 +68,7 @@ Create `packages/contracts` and `packages/game-core` when BUILD-P1/P2 needs real
 - `Profile.reputation` added.
 - `ProfileEventType` extended: `project_contributed`, `project_unlocked`, `benefit_claimed`, `contribution_liked`, `reputation_gained`.
 - Five new API endpoints: `GET /projects`, `POST /projects/:id/contribute`, `POST /projects/:id/claim-benefit`, `POST /contributions/:id/like`, `GET /feed`.
-- Feed query: single `ProfileEvent.findMany` for feed-typed events, batched `User` + `Project` lookups (3 queries total), keyset pagination by `createdAt`.
+- Feed query: single `ProfileEvent.findMany` for feed-typed events, batched `User` + `Project` lookups (3 queries total), opaque keyset pagination by `(createdAt, event id)` to keep same-timestamp events reachable across pages.
 - `apps/web/src/main.tsx` split into `app/`, `lib/`, `features/home`, `features/projects`, `features/feed`.
 - Seed: `apps/api/prisma/seed.ts` provisions 3 campus projects (notes/botan, gym/sportsman, festival/partygoer) idempotently.
 

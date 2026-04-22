@@ -24,7 +24,7 @@ import {
   computeContributionReward,
   CONTRIBUTE_ENERGY_COST
 } from './social.js';
-import { createPrismaStore, type AppStore } from './store.js';
+import { createPrismaStore, type AppStore, type FeedCursor } from './store.js';
 
 type ErrorResponse = ApiError;
 
@@ -62,6 +62,41 @@ type BuildAppDependencies = {
 
 function getErrorResponse(code: string, message: string, details?: unknown): ErrorResponse {
   return details ? { code, message, details } : { code, message };
+}
+
+function encodeFeedCursor(cursor: FeedCursor): string {
+  return Buffer.from(
+    JSON.stringify({
+      createdAt: cursor.createdAt.toISOString(),
+      eventId: cursor.eventId
+    }),
+    'utf8'
+  ).toString('base64url');
+}
+
+function decodeFeedCursor(value: string): FeedCursor | null {
+  try {
+    const decoded = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as {
+      createdAt?: unknown;
+      eventId?: unknown;
+    };
+
+    if (typeof decoded.createdAt !== 'string' || typeof decoded.eventId !== 'string') {
+      return null;
+    }
+
+    const createdAt = new Date(decoded.createdAt);
+    if (Number.isNaN(createdAt.getTime())) {
+      return null;
+    }
+
+    return {
+      createdAt,
+      eventId: decoded.eventId
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function buildApp(config: AppConfig, dependencies: BuildAppDependencies = {}) {
@@ -546,15 +581,23 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
 
     const query = request.query as { limit?: string; cursor?: string };
     const limit = Math.min(parseInt(query.limit ?? '20', 10) || 20, 50);
-    const cursor = query.cursor ? new Date(query.cursor) : undefined;
+    const parsedCursor = query.cursor ? decodeFeedCursor(query.cursor) : null;
 
+    if (query.cursor && !parsedCursor) {
+      return reply.status(400).send(getErrorResponse('INVALID_CURSOR', 'Курсор ленты некорректен'));
+    }
+
+    const cursor = parsedCursor ?? undefined;
     const items = await store.listFeed({ limit: limit + 1, cursor });
     const hasMore = items.length > limit;
     const page = hasMore ? items.slice(0, limit) : items;
     const lastItem = page[page.length - 1];
-    const nextCursor = hasMore && lastItem ? lastItem.createdAt : null;
+    const nextCursor =
+      hasMore && lastItem
+        ? encodeFeedCursor({ createdAt: lastItem.createdAt, eventId: lastItem.cursorId })
+        : null;
 
-    return { items: page, nextCursor };
+    return { items: page.map((entry) => entry.item), nextCursor };
   });
 
   return app;
