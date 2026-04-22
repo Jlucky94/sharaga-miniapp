@@ -21,12 +21,28 @@ function buildInitData(userId: number, firstName: string): string {
 
 async function authAs(app: ReturnType<typeof buildApp>, id: number, firstName: string, archetype: 'botan' | 'sportsman' | 'partygoer') {
   const authRes = await app.inject({ method: 'POST', url: '/api/v1/auth/telegram', payload: { initData: buildInitData(id, firstName) } });
-  const token = (authRes.json() as { accessToken: string }).accessToken;
+  const authBody = authRes.json() as { accessToken: string; user: { id: string } };
+  const token = authBody.accessToken;
   await app.inject({ method: 'POST', url: '/api/v1/class/select', headers: { Authorization: `Bearer ${token}` }, payload: { archetype } });
-  return token;
+  return { accessToken: token, userId: authBody.user.id };
 }
 
-test('three-account exam loop: queue, ready, autostart, rewards and feed', async () => {
+async function getProfileSnapshot(app: ReturnType<typeof buildApp>, accessToken: string) {
+  const response = await app.inject({ method: 'GET', url: '/api/v1/profile', headers: { Authorization: `Bearer ${accessToken}` } });
+  assert.equal(response.statusCode, 200);
+  return (response.json() as {
+    profile: {
+      userId: string;
+      level: number;
+      profileXp: number;
+      archetypeXp: number;
+      softCurrency: number;
+      reputation: number;
+    };
+  }).profile;
+}
+
+test('three-account exam loop: queue, ready, autostart, global feed, and final ready replay stay idempotent', async () => {
   const clock = { now: new Date('2026-04-23T12:00:00.000Z') };
   const store = new InMemoryAppStore();
   const app = buildApp(
@@ -34,41 +50,76 @@ test('three-account exam loop: queue, ready, autostart, rewards and feed', async
     { store, now: () => clock.now }
   );
 
-  const tokenA = await authAs(app, 100, 'Alice', 'botan');
-  const tokenB = await authAs(app, 200, 'Bob', 'sportsman');
-  const tokenC = await authAs(app, 300, 'Cora', 'partygoer');
+  const alice = await authAs(app, 100, 'Alice', 'botan');
+  const bob = await authAs(app, 200, 'Bob', 'sportsman');
+  const cora = await authAs(app, 300, 'Cora', 'partygoer');
 
-  const queueA = await app.inject({ method: 'POST', url: '/api/v1/parties/queue', headers: { Authorization: `Bearer ${tokenA}` }, payload: { capacity: 3 } });
+  const queueA = await app.inject({ method: 'POST', url: '/api/v1/parties/queue', headers: { Authorization: `Bearer ${alice.accessToken}` }, payload: { capacity: 3 } });
   const partyId = (queueA.json() as { party: { id: string } }).party.id;
-  await app.inject({ method: 'POST', url: '/api/v1/parties/queue', headers: { Authorization: `Bearer ${tokenB}` }, payload: { capacity: 3 } });
-  await app.inject({ method: 'POST', url: '/api/v1/parties/queue', headers: { Authorization: `Bearer ${tokenC}` }, payload: { capacity: 3 } });
+  await app.inject({ method: 'POST', url: '/api/v1/parties/queue', headers: { Authorization: `Bearer ${bob.accessToken}` }, payload: { capacity: 3 } });
+  await app.inject({ method: 'POST', url: '/api/v1/parties/queue', headers: { Authorization: `Bearer ${cora.accessToken}` }, payload: { capacity: 3 } });
 
-  const readyA = await app.inject({ method: 'POST', url: `/api/v1/parties/${partyId}/ready`, headers: { Authorization: `Bearer ${tokenA}` }, payload: { ready: true } });
+  const readyA = await app.inject({ method: 'POST', url: `/api/v1/parties/${partyId}/ready`, headers: { Authorization: `Bearer ${alice.accessToken}` }, payload: { ready: true } });
   assert.equal(readyA.statusCode, 200);
   assert.equal((readyA.json() as { run: null }).run, null);
 
-  const readyB = await app.inject({ method: 'POST', url: `/api/v1/parties/${partyId}/ready`, headers: { Authorization: `Bearer ${tokenB}` }, payload: { ready: true } });
+  const readyB = await app.inject({ method: 'POST', url: `/api/v1/parties/${partyId}/ready`, headers: { Authorization: `Bearer ${bob.accessToken}` }, payload: { ready: true } });
   assert.equal((readyB.json() as { run: null }).run, null);
 
   clock.now = new Date('2026-04-23T12:01:00.000Z');
-  const readyC = await app.inject({ method: 'POST', url: `/api/v1/parties/${partyId}/ready`, headers: { Authorization: `Bearer ${tokenC}` }, payload: { ready: true } });
+  const readyC = await app.inject({ method: 'POST', url: `/api/v1/parties/${partyId}/ready`, headers: { Authorization: `Bearer ${cora.accessToken}` }, payload: { ready: true } });
   assert.equal(readyC.statusCode, 200);
-  const run = (readyC.json() as { run: { outcome: string; rewards: Array<{ profileXp: number }> }; party: null }).run;
+  const run = (readyC.json() as { run: { id: string; outcome: string; rewards: Array<{ profileXp: number }> }; party: null }).run;
   assert.ok(run);
   assert.equal((readyC.json() as { party: null }).party, null);
   assert.ok(['success', 'partial_failure'].includes(run.outcome));
   assert.equal(run.rewards.length, 3);
 
-  const profileA = await app.inject({ method: 'GET', url: '/api/v1/profile', headers: { Authorization: `Bearer ${tokenA}` } });
-  assert.ok((profileA.json() as { profile: { profileXp: number } }).profile.profileXp > 0);
+  const profileAAfterRun = await getProfileSnapshot(app, alice.accessToken);
+  const profileBAfterRun = await getProfileSnapshot(app, bob.accessToken);
+  const profileCAfterRun = await getProfileSnapshot(app, cora.accessToken);
+  assert.ok(profileAAfterRun.profileXp > 0);
 
-  const examState = await app.inject({ method: 'GET', url: '/api/v1/exam', headers: { Authorization: `Bearer ${tokenA}` } });
+  const examState = await app.inject({ method: 'GET', url: '/api/v1/exam', headers: { Authorization: `Bearer ${alice.accessToken}` } });
   assert.equal((examState.json() as { latestRun: { partyId: string } }).latestRun.partyId, partyId);
 
-  const feed = await app.inject({ method: 'GET', url: '/api/v1/feed', headers: { Authorization: `Bearer ${tokenA}` } });
-  const examItem = (feed.json() as { items: Array<{ kind: string; partyId: string }> }).items.find((item) => item.kind === 'exam_result');
-  assert.ok(examItem);
-  assert.equal(examItem?.partyId, partyId);
+  const ownerEventsAfterRun = await store.listEvents(alice.userId);
+  assert.equal(ownerEventsAfterRun.filter((event) => event.eventType === 'exam.completed').length, 1);
+
+  const ownerFeed = await app.inject({ method: 'GET', url: '/api/v1/feed', headers: { Authorization: `Bearer ${alice.accessToken}` } });
+  const memberFeed = await app.inject({ method: 'GET', url: '/api/v1/feed', headers: { Authorization: `Bearer ${bob.accessToken}` } });
+  const ownerExamItems = (ownerFeed.json() as { items: Array<{ kind: string; partyId: string }> }).items.filter((item) => item.kind === 'exam_result');
+  const memberExamItems = (memberFeed.json() as { items: Array<{ kind: string; partyId: string }> }).items.filter((item) => item.kind === 'exam_result');
+  assert.equal(ownerExamItems.length, 1);
+  assert.equal(memberExamItems.length, 1);
+  assert.equal(ownerExamItems[0]?.partyId, partyId);
+  assert.equal(memberExamItems[0]?.partyId, partyId);
+
+  const replayReady = await app.inject({
+    method: 'POST',
+    url: `/api/v1/parties/${partyId}/ready`,
+    headers: { Authorization: `Bearer ${cora.accessToken}` },
+    payload: { ready: true }
+  });
+  assert.equal(replayReady.statusCode, 200);
+  const replayBody = replayReady.json() as { party: null; run: { id: string } };
+  assert.equal(replayBody.party, null);
+  assert.equal(replayBody.run.id, run.id);
+
+  const profileAAfterReplay = await getProfileSnapshot(app, alice.accessToken);
+  const profileBAfterReplay = await getProfileSnapshot(app, bob.accessToken);
+  const profileCAfterReplay = await getProfileSnapshot(app, cora.accessToken);
+  assert.deepEqual(profileAAfterReplay, profileAAfterRun);
+  assert.deepEqual(profileBAfterReplay, profileBAfterRun);
+  assert.deepEqual(profileCAfterReplay, profileCAfterRun);
+
+  const ownerEventsAfterReplay = await store.listEvents(alice.userId);
+  assert.equal(ownerEventsAfterReplay.filter((event) => event.eventType === 'exam.completed').length, 1);
+
+  const memberFeedAfterReplay = await app.inject({ method: 'GET', url: '/api/v1/feed', headers: { Authorization: `Bearer ${bob.accessToken}` } });
+  const memberExamItemsAfterReplay = (memberFeedAfterReplay.json() as { items: Array<{ kind: string; partyId: string }> }).items.filter((item) => item.kind === 'exam_result');
+  assert.equal(memberExamItemsAfterReplay.length, 1);
+  assert.equal(memberExamItemsAfterReplay[0]?.partyId, partyId);
 
   await app.close();
 });

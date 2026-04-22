@@ -15,5 +15,6 @@ coverage
 pnpm-debug.log*
 .DS_Store
 .codex-*.log
+apps/api/prisma/generated/
 
 .vscode/*

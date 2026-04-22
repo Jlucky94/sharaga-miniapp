@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { PrismaClient, type Prisma } from '@prisma/client';
+import { PrismaClient, type Prisma } from '../prisma/generated/client/index.js';
 import type { Archetype, FeedItem, PublicUser } from '@sharaga/contracts';
 
 // After BUILD-P2 migration runs, the Prisma client will include these models.
@@ -303,11 +303,19 @@ function fromPrismaExamRun(run: {
   };
 }
 
+function toPartyCapacity(capacity: number): 3 | 4 | 5 {
+  if (capacity === 3 || capacity === 4 || capacity === 5) {
+    return capacity;
+  }
+
+  throw new Error(`Unsupported party capacity: ${capacity}`);
+}
+
 function fromPrismaParty(args: {
   party: {
     id: string;
     ownerUserId: string;
-    capacity: 3 | 4 | 5;
+    capacity: number;
     status: 'queueing' | 'ready_check' | 'completed' | 'cancelled';
     createdAt: Date;
     updatedAt: Date;
@@ -324,7 +332,7 @@ function fromPrismaParty(args: {
   return {
     id: args.party.id,
     ownerUserId: args.party.ownerUserId,
-    capacity: args.party.capacity,
+    capacity: toPartyCapacity(args.party.capacity),
     status: args.party.status,
     memberCount: args.members.length,
     members: args.members.map((member) => ({
@@ -823,6 +831,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
       if (!player?.archetype) {
         throw new Error('ARCHETYPE_REQUIRED');
       }
+      const playerArchetype = player.archetype;
 
       for (let attempt = 0; attempt < 5; attempt += 1) {
         const openParties = await db.party.findMany({
@@ -847,7 +856,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
               members: {
                 create: {
                   userId,
-                  archetypeSnapshot: player.archetype,
+                  archetypeSnapshot: playerArchetype,
                   joinedAt: now
                 }
               }
@@ -880,7 +889,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
             data: {
               partyId: fresh.id,
               userId,
-              archetypeSnapshot: player.archetype,
+              archetypeSnapshot: playerArchetype,
               joinedAt: now
             }
           });

@@ -2,39 +2,31 @@
 
 ## Active phase
 
-Phase: BUILD-P3 - Cooperative Exam
+Phase: CHECK-C3 - Cooperative Event Control
 
 ## Goal
 
-Prove that a small party can gather for the Exam, where archetype composition materially affects the result and the outcome leaves a visible social trace.
+Verify BUILD-P0, BUILD-P1, BUILD-P2, and BUILD-P3 cumulatively so we can honestly say the cooperative Exam closes its contract without breaking the earlier shell, auth, profile, or async social loops.
 
 ## In scope
 
-- One active weekly-framed Exam event exposed through `/api/v1/exam`.
-- Party capacity choice `3 / 4 / 5`.
-- Queue + autofill party assembly.
-- Ready check and automatic start once the party is full and every member is ready.
-- Deterministic backend Exam rules with two visible outcomes: `success`, `partial_failure`.
-- Per-member rewards written once with idempotent completion behavior.
-- One Exam result entry in the shared social feed.
-- Three-account scenario covered by tests.
+- Confirm the early player path still works: Telegram auth, profile load, archetype choice, one action, reload.
+- Confirm async social still works: shared projects, benefit claim, thanks/likes, feed visibility, no duplicate rewards.
+- Confirm cooperative Exam still works end to end: queue + autofill, ready check, auto-start, deterministic outcome engine, one-time rewards, shared feed result.
+- Fix only blockers that prevent the cooperative event contract from being honestly closed.
 
 ## Out of scope
 
-- Manual invites or public party browser.
-- PvP, guilds, seasons, battle pass, marketplace.
-- Separate scheduler/calendar system for Exam windows.
-- Energy cost or cooldown for Exam participation.
-- Browser automation beyond current placeholder web tests.
+- BUILD-P4 hardening such as browser automation, release checklists, notifications, or staging workflows.
+- Manual invites, public party browser, PvP, guilds, seasons, marketplace, or any new game mode.
+- Desktop-first UX work or separate desktop layouts.
 
 ## Required user-visible result
 
-- Player opens the app and sees a new `Экзамен` tab.
-- Player chooses party size and enters queue.
-- Autofill gathers a full party.
-- Members mark readiness.
-- Exam starts automatically and resolves to either `success` or `partial_failure`.
-- Rewards apply once, survive reload, and the result appears in the shared feed.
+- Early user paths from BUILD-P1 and BUILD-P2 still behave correctly after the Exam work.
+- Player can enter the `Экзамен` tab, choose capacity `3 / 4 / 5`, join queue, and get autofilled into a full party.
+- Full party reaches ready check, final ready auto-starts the Exam, and the run resolves into `success` or `partial_failure`.
+- Rewards survive reload and repeated requests, and the result appears once in the shared feed for both owner and non-owner viewers.
 
 ## Mandatory checks for this phase
 
@@ -43,52 +35,60 @@ Prove that a small party can gather for the Exam, where archetype composition ma
 - `pnpm test`
 - `pnpm build`
 - local PostgreSQL reachable through `DATABASE_URL`
-- `pnpm --filter @sharaga/api prisma:migrate:deploy` applies BUILD-P3 schema (migration `20260423000000_build_p3_exam`)
+- `pnpm --filter @sharaga/api prisma:migrate:deploy`
 - `pnpm --filter @sharaga/api prisma:seed`
-- manual three-account smoke: queue -> full party -> all ready -> autostart -> rewards + feed entry
+- `pnpm --filter @sharaga/web gen:init-data` for three distinct dev users
+- live three-account cooperative Exam smoke against PostgreSQL (API-backed or UI-backed)
 
 ## Done when
 
-- BUILD-P1 and BUILD-P2 regressions still pass.
-- Exam unit, queue, and scenario tests pass.
-- Web shows Home + Projects + Exam + Feed tabs.
-- Party state remains consistent after reload and repeated ready requests.
-- Exam rewards and feed entry do not duplicate.
-- Docs reflect BUILD-P3 behavior and remaining verification gaps honestly.
+- BUILD-P0 through BUILD-P3 regressions stay green.
+- Exam tests explicitly prove:
+  - mixed composition is materially stronger than mono-party;
+  - a fixed-seed `success` path exists;
+  - a fixed-seed `partial_failure` path exists;
+  - repeated final `ready` does not duplicate `ExamRun`, `ExamReward`, or `exam_completed`.
+- Live PostgreSQL Exam smoke passes with one shared `exam_result` visible to a non-owner account.
+- Docs reflect the real verification state and known gaps honestly.
 
 ## Known gaps
 
-- Live PostgreSQL migration and manual three-account smoke were not run in this verification pass because no DB session was exercised here.
 - `apps/web` still uses placeholder `node --test`; browser automation remains a later phase concern.
-- Exam currently uses queue + autofill only; manual invite flows remain out of scope for BUILD-P3.
+- This verification pass used a live PostgreSQL API-backed three-account smoke instead of a dedicated browser-only three-client manual run.
+
+## Issues fixed in this pass
+
+- Added explicit CHECK-C3 regressions for deterministic `success` and `partial_failure` Exam outcomes, material role-composition advantage, non-owner feed visibility, and idempotent final `ready`.
+- Fixed the real PostgreSQL `/api/v1/parties/queue` path, which was failing with `500` because the runtime Prisma client did not include BUILD-P3 models under a locked Windows engine DLL workflow.
+- Moved Prisma client generation to a repo-local generated client and added a Windows-safe postinstall/generate fallback to `--no-engine` when the engine DLL is already locked by a running dev process.
 
 ## Last verification
 
 Date: 2026-04-22
 
-Commands run (from repo root):
-- `pnpm install` ✅ — workspace already up to date; Prisma client regenerated.
+Commands run (from repo root unless noted):
+
+- `pnpm install` ✅ — workspace already up to date; repo-local Prisma client regenerated, with Windows lock fallback exercised successfully.
 - `pnpm check` ✅ — zero TypeScript errors across contracts, API, and web.
-- `pnpm test` ✅ — 37 API tests + 4 contract tests pass, 0 fail.
+- `pnpm test` ✅ — 39 API tests + 4 contract tests pass, 0 fail.
 - `pnpm build` ✅ — contracts, API, and web compile; web production bundle built successfully.
+- `docker compose up -d db` ✅ — local PostgreSQL service reachable.
+- `pnpm --filter @sharaga/api prisma:migrate:deploy` ✅ — BUILD-P3 migration applied to live PostgreSQL.
+- `pnpm --filter @sharaga/api prisma:seed` ✅ — 3 campus projects upserted.
+- `pnpm --filter @sharaga/web gen:init-data` x3 ✅ — distinct dev initData generated for Alice/Bob/Cora.
+- live three-account PostgreSQL API smoke ✅ — queue -> full party -> all ready -> auto-start -> rewards persist -> non-owner feed sees one `exam_result` -> repeated final `ready` stays idempotent.
 
 Contract points verified locally:
 
-| BUILD-P3 point | Result |
+| CHECK-C3 point | Result |
 |---|---|
-| Queue + autofill creates/fills a party | ✅ `exam.queue.test.ts` |
-| Full party moves into readiness | ✅ `exam.queue.test.ts` |
-| Final ready triggers automatic Exam start | ✅ `exam.scenario.test.ts` |
-| Outcome depends on archetype composition logic | ✅ `exam.unit.test.ts` |
-| Rewards apply and persist on profile | ✅ `exam.unit.test.ts` + `exam.scenario.test.ts` |
-| Feed receives one Exam result item | ✅ `exam.scenario.test.ts` + existing feed tests |
-| BUILD-P1 / BUILD-P2 regressions remain green | ✅ existing auth + social suites |
-
-Not yet verified in this pass:
-- `prisma:migrate:deploy` against a live PostgreSQL database
-- `prisma:seed` against a live PostgreSQL database
-- manual three-account browser/API smoke against live DB
+| Earlier user paths are not broken | ✅ existing auth/profile suites + root `pnpm test` |
+| Party can be created and assembled | ✅ `exam.queue.test.ts` + live PostgreSQL smoke |
+| Exam depends on role composition | ✅ `exam.unit.test.ts` |
+| Successful and partially failed paths both exist | ✅ `exam.unit.test.ts` fixed-seed cases |
+| Rewards and result records do not duplicate | ✅ `exam.scenario.test.ts` + live PostgreSQL smoke DB counts |
+| Event result appears in shared social space | ✅ `exam.scenario.test.ts` + live non-owner feed check |
 
 ## Next phase
 
-CHECK-C3 - Cooperative Event Control
+BUILD-P4 - Alpha Candidate

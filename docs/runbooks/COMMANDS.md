@@ -96,6 +96,12 @@ Create a new migration while developing locally:
 pnpm --filter @sharaga/api prisma:migrate:dev
 ```
 
+Seed the current database with the 3 campus projects used by BUILD-P2 and BUILD-P3:
+
+```powershell
+pnpm --filter @sharaga/api prisma:seed
+```
+
 ## Generate local Telegram initData
 
 ```powershell
@@ -132,7 +138,7 @@ pnpm build
 - `apps/web` currently has a placeholder `node --test` script.
 - Playwright is still the target e2e runner for later phases.
 
-## Manual smoke test
+## Manual first-value smoke
 
 1. Start PostgreSQL locally and export required API env vars in the shell that starts the API:
 
@@ -143,10 +149,11 @@ $env:TELEGRAM_BOT_TOKEN="123:token"
 $env:JWT_SECRET="dev-jwt-secret"
 ```
 
-2. Apply the checked-in BUILD-P1 migration:
+2. Apply the checked-in migrations up through BUILD-P3 and seed the shared projects:
 
 ```powershell
 pnpm --filter @sharaga/api prisma:migrate:deploy
+pnpm --filter @sharaga/api prisma:seed
 ```
 
 3. Generate valid dev Telegram init data:
@@ -170,9 +177,40 @@ pnpm --filter @sharaga/web dev
 8. Reload the web app and confirm the same profile state is shown after re-auth.
 9. Confirm `http://127.0.0.1:3001/api/v1/health` returns `{ "status": "ok" }`.
 
+## Three-account cooperative Exam smoke
+
+1. Reuse the same PostgreSQL + env shell as above, or start from a clean DB with the same commands.
+2. Generate three distinct dev Telegram initData strings by overriding the helper env vars before each run:
+
+```powershell
+$env:TELEGRAM_BOT_TOKEN="123:token"
+
+$env:TG_DEV_USER_ID="81001"
+$env:TG_DEV_FIRST_NAME="Alice"
+$env:TG_DEV_USERNAME="alice81001"
+pnpm --filter @sharaga/web gen:init-data
+
+$env:TG_DEV_USER_ID="81002"
+$env:TG_DEV_FIRST_NAME="Bob"
+$env:TG_DEV_USERNAME="bob81002"
+pnpm --filter @sharaga/web gen:init-data
+
+$env:TG_DEV_USER_ID="81003"
+$env:TG_DEV_FIRST_NAME="Cora"
+$env:TG_DEV_USERNAME="cora81003"
+pnpm --filter @sharaga/web gen:init-data
+```
+
+3. Open three separate browser sessions, or script the same flow through the API with the three generated `initData` values.
+4. For the three users, select different archetypes: `botan`, `sportsman`, `partygoer`.
+5. From one user, queue into Exam with capacity `3`. From the other two users, queue into Exam with the same capacity until the party reaches `ready_check`.
+6. Mark all three members ready and confirm the final ready triggers immediate auto-start.
+7. Confirm `/api/v1/exam` returns `latestRun`, every member profile shows reward deltas after reload, and `/api/v1/feed` shows exactly one `exam_result`.
+8. Confirm the same `exam_result` is visible for a non-owner user as well as the owner.
+9. Repeat the final `POST /api/v1/parties/:id/ready` once more and confirm rewards/feed state do not change.
+
 ## Future runbooks to add
 
-- DB seed.
 - DB reset.
 - Playwright e2e.
 - Staging deploy.
