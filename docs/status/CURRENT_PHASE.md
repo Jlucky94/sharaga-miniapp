@@ -63,8 +63,40 @@ Prove that one player can help another asynchronously and receive a visible soci
 
 ## Last verification
 
-(pending — to be filled in after CHECK-C2)
+Date: 2026-04-22
+
+Commands run (from repo root):
+- `pnpm install` ✅ — workspace dependencies up to date, Prisma client generated.
+- `pnpm check` ✅ — zero TypeScript errors across all 3 packages.
+- `pnpm test` ✅ — 34 tests pass, 0 fail:
+  - `packages/contracts`: 4/4 (archetype schema, action catalog, profile DTO, request/response alignment).
+  - `apps/api auth.test.ts`: 6/6 (BUILD-P1 regression — Telegram auth, profile creation, archetype selection, action perform, reload state).
+  - `apps/api social.projects.test.ts`: 5/5 (contribute happy path, requestId idempotency, energy exhaustion, unlock at threshold, post-unlock rejection).
+  - `apps/api social.benefit.test.ts`: 5/5 (claim flow, duplicate rejection, contributor exclusion, locked-project rejection, reputation bump on A).
+  - `apps/api social.likes.test.ts`: 4/4 (like creation, duplicate rejection, self-like rejection, reputation increment).
+  - `apps/api social.feed.test.ts`: 3/3 (event ordering, all 4 event kinds, cursor pagination).
+  - `apps/api social.scenario.test.ts`: 1/1 (two-account full loop: A contributes until unlock → B claims benefit → B likes → A sees reputation + feed signal).
+  - `apps/web`: 0 tests (placeholder — known gap per phase contract).
+- `pnpm build` ✅ — contracts, API, and web all compile; Vite prod bundle 218 kB.
+
+Contract points verified:
+
+| C2 point | Result |
+|---|---|
+| First path (P0+P1 regression) — new player auth, archetype, action, reload | ✅ auth.test.ts green |
+| A contributes to shared project (energy cost, XP, requestId idempotency) | ✅ social.projects.test.ts |
+| Project unlocks at threshold; post-unlock contribution rejected | ✅ social.projects.test.ts |
+| B claims unlocked benefit once; retry returns 409 | ✅ social.benefit.test.ts |
+| A receives reputation when B claims; feed shows benefit_claimed | ✅ social.benefit.test.ts + social.scenario.test.ts |
+| Like gives +1 reputation to author; self-like and duplicate rejected | ✅ social.likes.test.ts |
+| Feed shows all 4 event kinds; keyset pagination works | ✅ social.feed.test.ts |
+| State consistent after repeated requests and reload | ✅ social.scenario.test.ts |
+| Two-account end-to-end scenario | ✅ social.scenario.test.ts |
+
+Notes:
+- Docker was unavailable in this session; `prisma:migrate:deploy` and `prisma:seed` were not run against a live DB. Tests use `InMemoryAppStore` and do not require PostgreSQL.
+- Web UI smoke (browser click-through) was not performed; browser automation is a known gap for this phase.
 
 ## Next phase
 
-CHECK-C2 - Async Social Loop Control
+BUILD-P3 — Cooperative Event Exam
