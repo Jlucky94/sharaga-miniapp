@@ -4,9 +4,9 @@ import { actionCatalog, actionIds, type ActionId, type ActionResult, type Archet
 
 type ArchetypeCardCopy = { title: string };
 const archetypeCards: Record<Archetype, ArchetypeCardCopy> = {
-  botan: { title: 'Botan' },
-  sportsman: { title: 'Sportsman' },
-  partygoer: { title: 'Partygoer' }
+  botan: { title: 'Ботан' },
+  sportsman: { title: 'Спортик' },
+  partygoer: { title: 'Тусовщик' }
 };
 
 function formatCountdown(remainingMs: number) {
@@ -60,53 +60,53 @@ export function HomeScreen({
   return (
     <main className="app-shell">
       <section className="hero-panel">
-        <span className="eyebrow">Saved Progress</span>
-        <h1>{state.profileData.user.firstName}, your role is live.</h1>
+        <span className="eyebrow">Твой прогресс</span>
+        <h1>{state.profileData.user.firstName}, твоя роль уже в деле.</h1>
         <p>
           {selectedArchetype
-            ? `You are playing as ${archetypeCards[selectedArchetype].title}. One clear action is enough to keep momentum today.`
-            : 'Choose an archetype to unlock your first meaningful action.'}
+            ? `Сейчас ты играешь за ${archetypeCards[selectedArchetype].title}. Одного внятного действия хватит, чтобы не выпадать из движа сегодня.`
+            : 'Сначала выбери роль, чтобы открыть свой первый полезный ход.'}
         </p>
       </section>
 
       <section className="stats-grid">
         <article className="stat-card">
-          <span>Archetype</span>
-          <strong>{selectedArchetype ? archetypeCards[selectedArchetype].title : 'Not chosen yet'}</strong>
+          <span>Роль</span>
+          <strong>{selectedArchetype ? archetypeCards[selectedArchetype].title : 'Еще не выбрана'}</strong>
         </article>
         <article className="stat-card">
-          <span>Level</span>
+          <span>Уровень</span>
           <strong>{profile.level}</strong>
         </article>
         <article className="stat-card">
-          <span>Profile XP</span>
+          <span>Общий XP</span>
           <strong>{profile.profileXp}</strong>
         </article>
         <article className="stat-card">
-          <span>Role XP</span>
+          <span>XP роли</span>
           <strong>{profile.archetypeXp}</strong>
         </article>
         <article className="stat-card">
-          <span>Energy</span>
+          <span>Энергия</span>
           <strong>{profile.energy}/3</strong>
         </article>
         <article className="stat-card">
-          <span>Currency</span>
+          <span>Монеты</span>
           <strong>{profile.softCurrency}</strong>
         </article>
         <article className="stat-card">
-          <span>Reputation</span>
+          <span>Репутация</span>
           <strong>{profile.reputation}</strong>
         </article>
       </section>
 
       <section className="action-header">
         <div>
-          <h2>Today's short loop</h2>
+          <h2>Короткий цикл на сегодня</h2>
           <p>
             {profile.energy > 0
-              ? 'Run one action, get readable progress, and leave with something saved.'
-              : `Energy is empty. Next point returns in ${formatCountdown(remainingMs)}.`}
+              ? 'Одно действие - и у тебя останется сохраненный прогресс, XP и немного ресурса.'
+              : `Энергия на нуле. Следующая единица вернется через ${formatCountdown(remainingMs)}.`}
           </p>
         </div>
       </section>
@@ -121,7 +121,7 @@ export function HomeScreen({
             <article key={actionId} className={`action-card${recommended ? ' action-card--recommended' : ''}`}>
               <div className="action-copy">
                 <span className="card-tag">
-                  {recommended ? 'Recommended' : action.archetypeAffinity ? archetypeCards[action.archetypeAffinity].title : 'Universal'}
+                  {recommended ? 'Тебе в тему' : action.archetypeAffinity ? archetypeCards[action.archetypeAffinity].title : 'Для всех'}
                 </span>
                 <h3>{action.label}</h3>
                 <p>{action.description}</p>
@@ -131,7 +131,7 @@ export function HomeScreen({
                 disabled={disabled}
                 onClick={() => void onRunAction(actionId)}
               >
-                {state.pending === actionId ? 'Working...' : 'Do this action'}
+                {state.pending === actionId ? 'Делаем...' : 'Сделать'}
               </button>
             </article>
           );
@@ -141,18 +141,18 @@ export function HomeScreen({
       {state.errorMessage ? <p className="inline-error">{state.errorMessage}</p> : null}
 
       <section className="result-panel">
-        <h2>Last visible result</h2>
+        <h2>Последний заметный результат</h2>
         {state.result ? (
           <>
             <p>{state.result.text}</p>
             <div className="reward-strip">
-              <span>+{state.result.rewards.profileXp} profile XP</span>
-              <span>+{state.result.rewards.archetypeXp} role XP</span>
-              <span>+{state.result.rewards.softCurrency} currency</span>
+              <span>+{state.result.rewards.profileXp} общего XP</span>
+              <span>+{state.result.rewards.archetypeXp} XP роли</span>
+              <span>+{state.result.rewards.softCurrency} монет</span>
             </div>
           </>
         ) : (
-          <p>Your first action result will appear here with readable rewards.</p>
+          <p>Здесь появится результат твоего последнего действия - без сухих цифр и с понятной пользой.</p>
         )}
       </section>
     </main>

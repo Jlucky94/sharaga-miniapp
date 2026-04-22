@@ -37,7 +37,7 @@ export function useAppState() {
       setState({
         status: 'local',
         message:
-          'Local development mode is available, but product auth needs Telegram initData. Set VITE_DEV_TELEGRAM_INIT_DATA to preview the full loop.'
+          'Локальная разработка доступна, но для полного входа нужен Telegram initData. Добавь VITE_DEV_TELEGRAM_INIT_DATA, чтобы увидеть весь цикл.'
       });
       return () => { cancelled = true; };
     }
@@ -61,7 +61,7 @@ export function useAppState() {
         if (!cancelled) {
           setState({
             status: 'error',
-            message: error instanceof Error ? error.message : 'Unable to open the Mini App session.'
+            message: error instanceof Error ? error.message : 'Не удалось открыть сессию мини-аппа.'
           });
         }
       }
@@ -86,7 +86,7 @@ export function useAppState() {
     } catch (error) {
       setState((current) => {
         if (current.status !== 'ready' || current.accessToken !== accessToken) return current;
-        return { ...current, pending: null, errorMessage: error instanceof Error ? error.message : 'Unable to refresh profile' };
+        return { ...current, pending: null, errorMessage: error instanceof Error ? error.message : 'Не удалось обновить профиль' };
       });
     }
   }
@@ -109,7 +109,7 @@ export function useAppState() {
     } catch (error) {
       setState((current) => {
         if (current.status !== 'ready') return current;
-        return { ...current, pending: null, errorMessage: error instanceof Error ? error.message : 'Unable to select archetype' };
+        return { ...current, pending: null, errorMessage: error instanceof Error ? error.message : 'Не удалось выбрать роль' };
       });
     }
   }
@@ -143,7 +143,7 @@ export function useAppState() {
     } catch (error) {
       setState((current) => {
         if (current.status !== 'ready') return current;
-        return { ...current, pending: null, errorMessage: error instanceof Error ? error.message : 'Unable to perform action' };
+        return { ...current, pending: null, errorMessage: error instanceof Error ? error.message : 'Не удалось выполнить действие' };
       });
     }
   }

@@ -10,19 +10,19 @@ type ArchetypeCardCopy = {
 
 const archetypeCards: Record<Archetype, ArchetypeCardCopy> = {
   botan: {
-    title: 'Botan',
-    summary: 'Clever, prepared, and the one who quietly keeps everybody from falling behind.',
-    role: 'Best when you want your progress to feel like steady academic support.'
+    title: 'Ботан',
+    summary: 'Собирает инфу, держит все по полочкам и вытаскивает своих, когда у остальных уже тильт.',
+    role: 'Твоя тема, если хочешь тащить через ум, пользу и крепкие конспекты.'
   },
   sportsman: {
-    title: 'Sportsman',
-    summary: 'Reliable momentum, physical discipline, and the teammate who stabilizes the group.',
-    role: 'Best when you want your progress to feel grounded, active, and dependable.'
+    title: 'Спортик',
+    summary: 'Держит темп, не сыпется под нагрузкой и подхватывает общий ритм, когда всем тяжело.',
+    role: 'Подходит, если тебе ближе движение, надежность и ощущение, что на тебе все не развалится.'
   },
   partygoer: {
-    title: 'Partygoer',
-    summary: 'Social spark, campus connector, and the player who makes other people show up.',
-    role: 'Best when you want your progress to feel visible, energetic, and magnetic.'
+    title: 'Тусовщик',
+    summary: 'Поднимает вайб, собирает людей и превращает мертвый чат в нормальный движ.',
+    role: 'Бери, если хочешь играть от харизмы, заметности и социального веса.'
   }
 };
 
@@ -38,9 +38,9 @@ export function ArchetypePicker({
   return (
     <main className="app-shell">
       <section className="hero-panel">
-        <span className="eyebrow">First Value</span>
-        <h1>Choose how your character helps the campus.</h1>
-        <p>One tap locks your role. Pick the fantasy that already feels natural to you.</p>
+        <span className="eyebrow">Первая роль</span>
+        <h1>Выбери, как ты будешь тащить общий движ.</h1>
+        <p>Одно нажатие закрепляет роль. Бери то, что тебе реально ближе по вайбу.</p>
       </section>
 
       <section className="card-grid">
@@ -53,7 +53,7 @@ export function ArchetypePicker({
               <h2>{copy.summary}</h2>
               <p>{copy.role}</p>
               <button className="primary-button" disabled={pending} onClick={() => void onSelect(archetype)}>
-                {pending ? 'Saving role...' : `Become ${copy.title}`}
+                {pending ? 'Сохраняем роль...' : `Выбрать ${copy.title}`}
               </button>
             </article>
           );

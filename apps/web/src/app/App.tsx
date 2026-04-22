@@ -30,15 +30,15 @@ export function App() {
   }, []);
 
   if (state.status === 'checking') {
-    return <StatusPanel title="Opening your campus session" message="Telegram auth is connecting your saved profile." tone="checking" />;
+    return <StatusPanel title="Открываем сессию" message="Telegram подключает твой сохраненный профиль." tone="checking" />;
   }
 
   if (state.status === 'local') {
-    return <StatusPanel title="Local mode is safe" message={state.message} tone="warning" />;
+    return <StatusPanel title="Локальный режим включен" message={state.message} tone="warning" />;
   }
 
   if (state.status === 'error') {
-    return <StatusPanel title="The session did not open" message={state.message} tone="error" />;
+    return <StatusPanel title="Сессия не открылась" message={state.message} tone="error" />;
   }
 
   if (!state.profileData.profile.archetype) {

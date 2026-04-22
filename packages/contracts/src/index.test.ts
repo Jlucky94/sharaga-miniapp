@@ -52,7 +52,7 @@ test('request/response schemas stay aligned with action result payloads', () => 
 
   const parsed = actionResultSchema.parse({
     actionId: 'help_classmate',
-    text: 'You stepped in for a classmate and made the whole day feel lighter.',
+    text: 'Ты выручил своего, и у человека день уже не выглядит таким тильтовым.',
     rewards: {
       profileXp: 10,
       archetypeXp: 4,

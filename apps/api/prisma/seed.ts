@@ -7,36 +7,51 @@ async function main() {
     where: { kind: 'notes' },
     create: {
       kind: 'notes',
-      title: 'Shared Notes',
-      description: 'Build a shared notes archive that helps everyone prepare for exams.',
+      title: 'Общие конспекты',
+      description: 'Соберите общий архив конспектов, чтобы своим было проще готовиться к зачетам и экзаменам.',
       threshold: 5,
       affinity: 'botan'
     },
-    update: {}
+    update: {
+      title: 'Общие конспекты',
+      description: 'Соберите общий архив конспектов, чтобы своим было проще готовиться к зачетам и экзаменам.',
+      threshold: 5,
+      affinity: 'botan'
+    }
   });
 
   await prisma.project.upsert({
     where: { kind: 'gym' },
     create: {
       kind: 'gym',
-      title: 'Campus Gym',
-      description: 'Upgrade the campus gym so everyone can train harder and recover faster.',
+      title: 'Кампусная качалка',
+      description: 'Прокачайте зал, чтобы всем было проще держать форму, восстанавливаться и не сыпаться перед общими делами.',
       threshold: 5,
       affinity: 'sportsman'
     },
-    update: {}
+    update: {
+      title: 'Кампусная качалка',
+      description: 'Прокачайте зал, чтобы всем было проще держать форму, восстанавливаться и не сыпаться перед общими делами.',
+      threshold: 5,
+      affinity: 'sportsman'
+    }
   });
 
   await prisma.project.upsert({
     where: { kind: 'festival' },
     create: {
       kind: 'festival',
-      title: 'Festival Stage',
-      description: 'Set up the festival stage so the campus has a place to gather and celebrate.',
+      title: 'Сцена для движа',
+      description: 'Соберите сцену для движа, чтобы у всех появилось место, где можно собраться, пошуметь и словить общий вайб.',
       threshold: 4,
       affinity: 'partygoer'
     },
-    update: {}
+    update: {
+      title: 'Сцена для движа',
+      description: 'Соберите сцену для движа, чтобы у всех появилось место, где можно собраться, пошуметь и словить общий вайб.',
+      threshold: 4,
+      affinity: 'partygoer'
+    }
   });
 
   console.log('Seed complete: 3 campus projects upserted.');

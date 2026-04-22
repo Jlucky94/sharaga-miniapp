@@ -70,7 +70,7 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
   const now = dependencies.now ?? (() => new Date());
 
   function getUnauthorizedResponse() {
-    return getErrorResponse('UNAUTHORIZED', 'Authorization token is missing or invalid');
+    return getErrorResponse('UNAUTHORIZED', 'Токен авторизации отсутствует или недействителен');
   }
 
   async function authorizeRequest(
@@ -109,10 +109,10 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
     if (maybeValidation) {
       return reply
         .status(400)
-        .send(getErrorResponse('INVALID_REQUEST', 'Invalid request payload', maybeValidation));
+        .send(getErrorResponse('INVALID_REQUEST', 'Некорректные данные запроса', maybeValidation));
     }
 
-    const message = error instanceof Error ? error.message : 'An unexpected error occurred';
+    const message = error instanceof Error ? error.message : 'Произошла непредвиденная ошибка';
 
     return reply.status(500).send(getErrorResponse('INTERNAL_SERVER_ERROR', message));
   });
@@ -127,7 +127,7 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
     const body = request.body as { initData?: unknown };
 
     if (typeof body?.initData !== 'string' || body.initData.length === 0) {
-      return reply.status(400).send({ code: 'INVALID_INIT_DATA', message: 'initData is required' });
+      return reply.status(400).send({ code: 'INVALID_INIT_DATA', message: 'Нужно передать initData' });
     }
 
     let validated;
@@ -135,10 +135,10 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
       validated = validateTelegramInitData(body.initData, config.telegramBotToken);
     } catch (error) {
       if (error instanceof Error && error.message === 'INVALID_SIGNATURE') {
-        return reply.status(401).send(getErrorResponse('INVALID_SIGNATURE', 'Telegram initData signature is invalid'));
+        return reply.status(401).send(getErrorResponse('INVALID_SIGNATURE', 'Подпись Telegram initData недействительна'));
       }
 
-      return reply.status(400).send(getErrorResponse('INVALID_INIT_DATA', 'Telegram initData is invalid'));
+      return reply.status(400).send(getErrorResponse('INVALID_INIT_DATA', 'Telegram initData некорректен'));
     }
 
     const authResult = await store.authenticateTelegramUser(validated.user, now());
@@ -169,7 +169,7 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
 
     const player = await store.findPlayerByUserId(user.id);
     if (!player) {
-      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Profile was not found'));
+      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Профиль не найден'));
     }
 
     const currentTime = now();
@@ -190,18 +190,18 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
 
     const parsed = selectArchetypeRequestSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.status(400).send(getErrorResponse('INVALID_ARCHETYPE', 'Archetype is invalid', parsed.error.flatten()));
+      return reply.status(400).send(getErrorResponse('INVALID_ARCHETYPE', 'Роль указана некорректно', parsed.error.flatten()));
     }
 
     const player = await store.findPlayerByUserId(user.id);
     if (!player) {
-      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Profile was not found'));
+      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Профиль не найден'));
     }
 
     if (player.profile.archetype) {
       return reply
         .status(409)
-        .send(getErrorResponse('ARCHETYPE_ALREADY_SELECTED', 'Archetype is already selected'));
+        .send(getErrorResponse('ARCHETYPE_ALREADY_SELECTED', 'Роль уже выбрана'));
     }
 
     const currentTime = now();
@@ -228,12 +228,12 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
 
     const parsed = performActionRequestSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.status(400).send(getErrorResponse('INVALID_ACTION_ID', 'Action is invalid', parsed.error.flatten()));
+      return reply.status(400).send(getErrorResponse('INVALID_ACTION_ID', 'Действие указано некорректно', parsed.error.flatten()));
     }
 
     const player = await store.findPlayerByUserId(user.id);
     if (!player) {
-      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Profile was not found'));
+      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Профиль не найден'));
     }
 
     const currentTime = now();
@@ -241,10 +241,10 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
 
     if ('errorCode' in actionOutcome) {
       if (actionOutcome.errorCode === 'ARCHETYPE_REQUIRED') {
-        return reply.status(409).send(getErrorResponse('ARCHETYPE_REQUIRED', 'Choose an archetype before performing actions'));
+        return reply.status(409).send(getErrorResponse('ARCHETYPE_REQUIRED', 'Сначала выбери роль'));
       }
 
-      return reply.status(409).send(getErrorResponse('INSUFFICIENT_ENERGY', 'Not enough energy for this action'));
+      return reply.status(409).send(getErrorResponse('INSUFFICIENT_ENERGY', 'На это действие не хватает энергии'));
     }
 
     player.profile = await store.replaceProfile(user.id, actionOutcome.profile, {
@@ -324,23 +324,23 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
 
     const parsed = contributeRequestSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.status(400).send(getErrorResponse('INVALID_REQUEST', 'Invalid request', parsed.error.flatten()));
+      return reply.status(400).send(getErrorResponse('INVALID_REQUEST', 'Некорректный запрос', parsed.error.flatten()));
     }
 
     const { requestId, amount } = parsed.data;
 
     const project = await store.getProjectById(projectId);
     if (!project) {
-      return reply.status(404).send(getErrorResponse('PROJECT_NOT_FOUND', 'Project was not found'));
+      return reply.status(404).send(getErrorResponse('PROJECT_NOT_FOUND', 'Проект не найден'));
     }
 
     if (project.unlockedAt !== null) {
-      return reply.status(409).send(getErrorResponse('PROJECT_ALREADY_UNLOCKED', 'This project is already unlocked'));
+      return reply.status(409).send(getErrorResponse('PROJECT_ALREADY_UNLOCKED', 'Этот проект уже открыт'));
     }
 
     const player = await store.findPlayerByUserId(user.id);
     if (!player) {
-      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Profile was not found'));
+      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Профиль не найден'));
     }
 
     const currentTime = now();
@@ -348,11 +348,11 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
     const currentProfile = refreshed.profile;
 
     if (!currentProfile.archetype) {
-      return reply.status(409).send(getErrorResponse('ARCHETYPE_REQUIRED', 'Choose an archetype before contributing'));
+      return reply.status(409).send(getErrorResponse('ARCHETYPE_REQUIRED', 'Сначала выбери роль'));
     }
 
     if (currentProfile.energy < CONTRIBUTE_ENERGY_COST) {
-      return reply.status(422).send(getErrorResponse('INSUFFICIENT_ENERGY', 'Not enough energy to contribute'));
+      return reply.status(422).send(getErrorResponse('INSUFFICIENT_ENERGY', 'Не хватает энергии, чтобы вложиться в проект'));
     }
 
     const reward = computeContributionReward(currentProfile.archetype, project.affinity);
@@ -414,10 +414,10 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
     } catch (err) {
       if (err instanceof Error) {
         if (err.message === 'PROJECT_ALREADY_UNLOCKED') {
-          return reply.status(409).send(getErrorResponse('PROJECT_ALREADY_UNLOCKED', 'Project is already unlocked'));
+          return reply.status(409).send(getErrorResponse('PROJECT_ALREADY_UNLOCKED', 'Этот проект уже открыт'));
         }
         if ((err as { statusCode?: number }).statusCode === 503) {
-          return reply.status(503).send(getErrorResponse('SERVICE_UNAVAILABLE', 'Could not process contribution, please retry'));
+          return reply.status(503).send(getErrorResponse('SERVICE_UNAVAILABLE', 'Не удалось обработать вклад, попробуй еще раз'));
         }
       }
       throw err;
@@ -432,21 +432,21 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
 
     const project = await store.getProjectById(projectId);
     if (!project) {
-      return reply.status(404).send(getErrorResponse('PROJECT_NOT_FOUND', 'Project was not found'));
+      return reply.status(404).send(getErrorResponse('PROJECT_NOT_FOUND', 'Проект не найден'));
     }
 
     if (project.unlockedAt === null) {
-      return reply.status(403).send(getErrorResponse('PROJECT_NOT_UNLOCKED', 'This project has not been unlocked yet'));
+      return reply.status(403).send(getErrorResponse('PROJECT_NOT_UNLOCKED', 'Этот проект пока не открыт'));
     }
 
     const contributorIds = await store.listProjectContributorIds(projectId);
     if (contributorIds.includes(user.id)) {
-      return reply.status(403).send(getErrorResponse('CONTRIBUTOR_CANNOT_CLAIM', 'You contributed to this project and cannot claim the benefit'));
+      return reply.status(403).send(getErrorResponse('CONTRIBUTOR_CANNOT_CLAIM', 'Ты уже вкладывался в этот проект и не можешь забрать бонус'));
     }
 
     const player = await store.findPlayerByUserId(user.id);
     if (!player) {
-      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Profile was not found'));
+      return reply.status(404).send(getErrorResponse('PROFILE_NOT_FOUND', 'Профиль не найден'));
     }
 
     const currentTime = now();
@@ -490,10 +490,10 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
     } catch (err) {
       if (err instanceof Error) {
         if (err.message === 'BENEFIT_ALREADY_CLAIMED' || (err as { statusCode?: number }).statusCode === 409) {
-          return reply.status(409).send(getErrorResponse('BENEFIT_ALREADY_CLAIMED', 'You have already claimed this benefit'));
+          return reply.status(409).send(getErrorResponse('BENEFIT_ALREADY_CLAIMED', 'Ты уже забрал бонус этого проекта'));
         }
         if (err.message === 'CONTRIBUTOR_CANNOT_CLAIM') {
-          return reply.status(403).send(getErrorResponse('CONTRIBUTOR_CANNOT_CLAIM', 'Contributors cannot claim their own project benefit'));
+          return reply.status(403).send(getErrorResponse('CONTRIBUTOR_CANNOT_CLAIM', 'Авторы вклада не могут забрать бонус своего проекта'));
         }
       }
       throw err;
@@ -508,11 +508,11 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
 
     const contribution = await store.getContributionById(contributionId);
     if (!contribution) {
-      return reply.status(404).send(getErrorResponse('CONTRIBUTION_NOT_FOUND', 'Contribution was not found'));
+      return reply.status(404).send(getErrorResponse('CONTRIBUTION_NOT_FOUND', 'Вклад не найден'));
     }
 
     if (contribution.userId === user.id) {
-      return reply.status(400).send(getErrorResponse('SELF_LIKE', 'You cannot like your own contribution'));
+      return reply.status(400).send(getErrorResponse('SELF_LIKE', 'Нельзя сказать спасибо самому себе'));
     }
 
     const currentTime = now();
@@ -534,7 +534,7 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
       };
     } catch (err) {
       if (err instanceof Error && (err.message === 'ALREADY_LIKED' || (err as { statusCode?: number }).statusCode === 409)) {
-        return reply.status(409).send(getErrorResponse('ALREADY_LIKED', 'You have already liked this contribution'));
+        return reply.status(409).send(getErrorResponse('ALREADY_LIKED', 'Ты уже сказал спасибо за этот вклад'));
       }
       throw err;
     }

@@ -27,6 +27,7 @@ prompts/
   service/
     SCOPE_RESET.txt
     DOCS_SYNC.txt
+    RU_PRODUCT_RESET.txt
 ```
 
 ## Execution model
@@ -56,3 +57,4 @@ prompts/
 | `prompts/check/C4.txt` | CHECK-C4 alpha gate |
 | `prompts/service/SCOPE_RESET.txt` | Return agent to active phase scope |
 | `prompts/service/DOCS_SYNC.txt` | Sync docs with current repository facts |
+| `prompts/service/RU_PRODUCT_RESET.txt` | Return agent to the Russian-first product frame and align existing user-facing copy/naming to the Russian-speaking student audience |

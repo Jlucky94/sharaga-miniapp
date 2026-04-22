@@ -9,19 +9,19 @@ export function Tabs({ active, onChange }: { active: TabId; onChange: (tab: TabI
         className={`tab-button${active === 'home' ? ' tab-button--active' : ''}`}
         onClick={() => onChange('home')}
       >
-        Home
+        Главная
       </button>
       <button
         className={`tab-button${active === 'projects' ? ' tab-button--active' : ''}`}
         onClick={() => onChange('projects')}
       >
-        Projects
+        Проекты
       </button>
       <button
         className={`tab-button${active === 'feed' ? ' tab-button--active' : ''}`}
         onClick={() => onChange('feed')}
       >
-        Feed
+        Лента
       </button>
     </nav>
   );

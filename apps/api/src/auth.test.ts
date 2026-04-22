@@ -92,7 +92,7 @@ test('invalid signature returns 401 from auth endpoint', async () => {
   assert.equal(response.statusCode, 401);
   assert.deepEqual(response.json(), {
     code: 'INVALID_SIGNATURE',
-    message: 'Telegram initData signature is invalid'
+    message: 'Подпись Telegram initData недействительна'
   });
 
   await app.close();
@@ -176,7 +176,7 @@ test('archetype can only be selected once', async () => {
   assert.equal(secondSelection.statusCode, 409);
   assert.deepEqual(secondSelection.json(), {
     code: 'ARCHETYPE_ALREADY_SELECTED',
-    message: 'Archetype is already selected'
+    message: 'Роль уже выбрана'
   });
 
   const events = await store.listEvents(auth.user.id);
@@ -201,7 +201,7 @@ test('actions require an archetype before use', async () => {
   assert.equal(response.statusCode, 409);
   assert.deepEqual(response.json(), {
     code: 'ARCHETYPE_REQUIRED',
-    message: 'Choose an archetype before performing actions'
+    message: 'Сначала выбери роль'
   });
 
   await app.close();
@@ -406,7 +406,7 @@ test('insufficient energy blocks actions until regen catches up', async () => {
   assert.equal(depletedResponse.statusCode, 409);
   assert.deepEqual(depletedResponse.json(), {
     code: 'INSUFFICIENT_ENERGY',
-    message: 'Not enough energy for this action'
+    message: 'На это действие не хватает энергии'
   });
 
   clock.now = new Date(clock.now.getTime() + ENERGY_INTERVAL_MS);

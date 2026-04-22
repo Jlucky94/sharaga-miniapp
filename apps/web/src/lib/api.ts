@@ -38,7 +38,7 @@ export async function authenticate(initData: string): Promise<AuthResponse> {
 
   if (!response.ok) {
     const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Unable to authenticate with Telegram');
+    throw new Error(error?.message ?? 'Не удалось войти через Telegram');
   }
 
   return (await response.json()) as AuthResponse;
@@ -51,7 +51,7 @@ export async function getProfile(accessToken: string): Promise<ProfileResponse> 
 
   if (!response.ok) {
     const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Unable to load profile');
+    throw new Error(error?.message ?? 'Не удалось загрузить профиль');
   }
 
   return (await response.json()) as ProfileResponse;
@@ -66,7 +66,7 @@ export async function selectArchetype(accessToken: string, archetype: Archetype)
 
   if (!response.ok) {
     const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Unable to select archetype');
+    throw new Error(error?.message ?? 'Не удалось выбрать роль');
   }
 
   return (await response.json()) as ProfileResponse;
@@ -84,7 +84,7 @@ export async function performAction(
 
   if (!response.ok) {
     const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Unable to perform action');
+    throw new Error(error?.message ?? 'Не удалось выполнить действие');
   }
 
   return (await response.json()) as ProfileResponse & { result: ActionResult };
@@ -97,7 +97,7 @@ export async function listProjects(accessToken: string): Promise<{ projects: Pro
 
   if (!response.ok) {
     const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Unable to load projects');
+    throw new Error(error?.message ?? 'Не удалось загрузить проекты');
   }
 
   return (await response.json()) as { projects: Project[] };
@@ -116,7 +116,7 @@ export async function contributeToProject(
 
   if (!response.ok) {
     const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Unable to contribute to project');
+    throw new Error(error?.message ?? 'Не удалось вложиться в проект');
   }
 
   return (await response.json()) as { profile: ProfileResponse['profile']; project: Project; unlocked: boolean; contribution: { id: string } };
@@ -133,7 +133,7 @@ export async function claimBenefit(
 
   if (!response.ok) {
     const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Unable to claim benefit');
+    throw new Error(error?.message ?? 'Не удалось забрать бонус');
   }
 
   return (await response.json()) as { profile: ProfileResponse['profile'] };
@@ -150,7 +150,7 @@ export async function likeContribution(
 
   if (!response.ok) {
     const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Unable to like contribution');
+    throw new Error(error?.message ?? 'Не удалось отправить спасибо');
   }
 }
 
@@ -165,7 +165,7 @@ export async function getFeed(
 
   if (!response.ok) {
     const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Unable to load feed');
+    throw new Error(error?.message ?? 'Не удалось загрузить ленту');
   }
 
   return (await response.json()) as { items: FeedItem[]; nextCursor: string | null };

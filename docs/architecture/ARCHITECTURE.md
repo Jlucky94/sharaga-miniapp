@@ -270,3 +270,6 @@ flowchart TD
 - Use shared contracts once API responses become product-facing and stable.
 - Every important player action should be loggable as a product event.
 - Prefer simple vertical slices over premature platform layers.
+- Treat the current product as single-language by default for user-facing surfaces: until a separate i18n task exists, the default interface language is Russian.
+- `locale` and Telegram language metadata may be stored for future use, but they do not trigger automatic language switching in the current phases.
+- API identifiers, internal contracts, schemas, and test fixtures may remain technical/English where convenient, but user-visible copy, seed/display text, and UX wording should be designed in Russian by default.

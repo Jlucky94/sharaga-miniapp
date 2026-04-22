@@ -60,6 +60,8 @@ Prove that one player can help another asynchronously and receive a visible soci
 
 - `apps/web` tests are still node --test placeholder; browser automation is a later-phase concern.
 - Soft-deletion / reset of project cycles is out of scope for BUILD-P2.
+- Core user-facing copy is now expected to stay Russian-first across web UI, action catalog, project display text, and API human-readable messages; technical ids remain English by design.
+- Manual browser smoke for the Russian-first copy pass is still pending; browser automation remains a later-phase concern.
 
 ## Last verification
 

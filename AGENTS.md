@@ -2,7 +2,7 @@
 
 ## Mission
 
-Build a social Telegram Mini App game in a school/university setting.
+Build a Russian-first social Telegram Mini App game for Russian-speaking school and university youth.
 
 The product core is:
 
@@ -12,6 +12,8 @@ The product core is:
 - visible gratitude, reputation, and social traces.
 
 Do not add systems outside the current phase.
+
+The product is designed first for users in Russia and for a Russian-speaking youth audience. Product-facing copy, UX naming, reward text, examples, and scenario text should default to Russian unless a task explicitly says otherwise.
 
 ## Read first
 
@@ -46,6 +48,9 @@ Do not read, scan, or index `prompts/` during normal work. That directory is an 
 - Treat the game as event-driven: important player actions should be recordable as domain events.
 - Treat the product as a mobile-first Telegram Mini App: design primary UX flows and layouts for phone screens only unless the user explicitly asks for a desktop adaptation.
 - Do not spend scope on separate desktop-first design or dedicated desktop layouts by default; desktop can degrade gracefully without bespoke product design work.
+- Treat the product as Russian-first by default: user-facing copy, CTA labels, reward copy, feed wording, and display text should be written in Russian unless the task explicitly requires another language.
+- Use layered slang: base navigation, onboarding, and system/error states must stay clear and readable; brand voice, social moments, and reward copy may use moderate Russian student slang when it improves character and recognition.
+- Do not drift into humiliation, hard toxicity, romanticized criminal language, or unreadable meme-noise. "Sharaga" is a cultural signal, not a license to make the product sound abusive or prison-themed.
 
 ## Current foundation
 

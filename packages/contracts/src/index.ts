@@ -23,31 +23,31 @@ export type ActionCatalogEntry = {
 export const actionCatalog = {
   study_notes: {
     id: 'study_notes',
-    label: 'Study Notes',
-    description: 'Turn a messy lecture into notes classmates can actually use.',
+    label: 'Собрать конспект',
+    description: 'Разгрести сумбур после пары и собрать конспект, который реально выручит своих.',
     archetypeAffinity: 'botan',
-    resultCopy: 'You turned scattered lecture notes into something classmates will thank you for later.'
+    resultCopy: 'Ты собрал внятный конспект, и теперь своим будет проще вывезти следующую пару.'
   },
   train_hard: {
     id: 'train_hard',
-    label: 'Train Hard',
-    description: 'Build momentum and show up as the reliable one when it matters.',
+    label: 'Вкатиться в треню',
+    description: 'Подзарядить форму и показать, что на тебя можно опереться, когда всем тяжело.',
     archetypeAffinity: 'sportsman',
-    resultCopy: 'You pushed through a hard session and brought steady momentum back to campus.'
+    resultCopy: 'Ты хорошо вкатился в треню и вернул в общий движ немного тонуса.'
   },
   spark_the_campus: {
     id: 'spark_the_campus',
-    label: 'Spark The Campus',
-    description: 'Lift the mood and make it easier for people to gather around something fun.',
+    label: 'Раскачать движ',
+    description: 'Поднять вайб и сделать так, чтобы вокруг снова хотелось собраться.',
     archetypeAffinity: 'partygoer',
-    resultCopy: 'You gave the campus a burst of energy and made people want to join in.'
+    resultCopy: 'Ты раскачал движ, и вокруг сразу стало больше энергии и желания вписаться.'
   },
   help_classmate: {
     id: 'help_classmate',
-    label: 'Help A Classmate',
-    description: 'Step in fast and make someone else’s day less chaotic.',
+    label: 'Выручить своего',
+    description: 'Быстро вписаться в чужой завал и сделать день кому-то чуть менее нервным.',
     archetypeAffinity: null,
-    resultCopy: 'You stepped in for a classmate and made the whole day feel lighter.'
+    resultCopy: 'Ты выручил своего, и у человека день уже не выглядит таким тильтовым.'
   }
 } as const satisfies Record<ActionId, ActionCatalogEntry>;
 

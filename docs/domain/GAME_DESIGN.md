@@ -113,4 +113,25 @@ Do not add in MVP:
 
 ## Tone
 
-School/university setting can be playful, but avoid humiliation, hard toxicity, and criminal/cringe shells. Use local status and campus usefulness instead of global domination.
+This product is Russian-first and should feel native to a Russian-speaking school/university audience. The setting can be playful, recognizably local, and a little cheeky, but it should still read as a clear mobile product, not as an in-joke that only works for the author.
+
+Use Russian-language copy by default for user-facing surfaces:
+
+- navigation labels, CTA text, reward copy, feed text, and onboarding should be written in Russian;
+- phrasing should sound short, conversational, and mobile-first;
+- student slang is allowed as a layer, not as the whole interface language.
+
+The cultural target is Russian school/university life:
+
+- use recognizable local social dynamics, student roles, and campus humor;
+- prefer language that sounds familiar to Russian-speaking teenagers and students;
+- keep the humor grounded in shared experience, usefulness, and social reputation.
+
+`Шарага` is a bold cultural marker, not a literal prison/criminal aesthetic. References can borrow edge and attitude from local slang, but the product should not romanticize jail language, cruelty, or degradation.
+
+Copy rules:
+
+- keep the base UI clear, short, and easy to scan on a phone;
+- use slang only where it adds flavor to brand, social feedback, or reward moments;
+- system errors, onboarding, and primary CTA text must remain more readable than "cool";
+- avoid humiliation, hard toxicity, and incoherent meme-speak.

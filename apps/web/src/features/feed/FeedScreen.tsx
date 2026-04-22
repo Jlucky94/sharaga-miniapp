@@ -29,28 +29,28 @@ function FeedItemRow({
       await likeContribution(accessToken, contributionId);
       setLiked(true);
     } catch (err) {
-      setLikeError(err instanceof Error ? err.message : 'Failed to like');
+      setLikeError(err instanceof Error ? err.message : 'Не удалось отправить спасибо');
     } finally {
       setLiking(false);
     }
   }
 
-  const time = new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const time = new Date(item.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   const isOwnItem = item.userId === currentUserId;
 
   if (item.kind === 'contribution') {
     return (
       <article className="feed-item">
         <p>
-          <strong>{item.userFirstName}</strong> contributed to <em>{item.projectTitle}</em>
+          <strong>{item.userFirstName}</strong> вложился в <em>{item.projectTitle}</em>
         </p>
         <span className="feed-time">{time}</span>
         {!isOwnItem && !liked && (
           <button className="secondary-button" disabled={liking} onClick={() => void handleLike(item.id)}>
-            {liking ? 'Thanking...' : 'Thank'}
+            {liking ? 'Шлем спасибо...' : 'Сказать спасибо'}
           </button>
         )}
-        {liked && <span className="inline-success">Thanked</span>}
+        {liked && <span className="inline-success">Спасибо отправлено</span>}
         {likeError && <span className="inline-error">{likeError}</span>}
       </article>
     );
@@ -60,7 +60,7 @@ function FeedItemRow({
     return (
       <article className="feed-item feed-item--highlight">
         <p>
-          <strong>{item.userFirstName}</strong> unlocked <em>{item.projectTitle}</em> for everyone!
+          <strong>{item.userFirstName}</strong> открыл <em>{item.projectTitle}</em> для всех
         </p>
         <span className="feed-time">{time}</span>
       </article>
@@ -71,7 +71,7 @@ function FeedItemRow({
     return (
       <article className="feed-item">
         <p>
-          <strong>{item.userFirstName}</strong> used the benefit from <em>{item.projectTitle}</em>
+          <strong>{item.userFirstName}</strong> забрал бонус из <em>{item.projectTitle}</em>
         </p>
         <span className="feed-time">{time}</span>
       </article>
@@ -82,7 +82,7 @@ function FeedItemRow({
     return (
       <article className="feed-item">
         <p>
-          <strong>{item.userFirstName}</strong> thanked a contribution to <em>{item.projectTitle}</em>
+          <strong>{item.userFirstName}</strong> сказал спасибо за вклад в <em>{item.projectTitle}</em>
         </p>
         <span className="feed-time">{time}</span>
       </article>
@@ -102,7 +102,7 @@ export function FeedScreen({ accessToken, currentUserId }: FeedScreenProps) {
       const data = await getFeed(accessToken);
       setItems(data.items);
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to load feed');
+      setErrorMessage(err instanceof Error ? err.message : 'Не удалось загрузить ленту');
     } finally {
       setLoading(false);
     }
@@ -118,8 +118,8 @@ export function FeedScreen({ accessToken, currentUserId }: FeedScreenProps) {
     return (
       <main className="app-shell">
         <section className="hero-panel hero-panel--checking">
-          <span className="eyebrow">Feed</span>
-          <h1>Loading feed...</h1>
+          <span className="eyebrow">Лента</span>
+          <h1>Подгружаем ленту...</h1>
         </section>
       </main>
     );
@@ -128,16 +128,16 @@ export function FeedScreen({ accessToken, currentUserId }: FeedScreenProps) {
   return (
     <main className="app-shell">
       <section className="hero-panel">
-        <span className="eyebrow">Social Feed</span>
-        <h1>What the campus is doing.</h1>
-        <p>Contributions and gratitude leave a visible trace here. Thank someone if their work helped you.</p>
+        <span className="eyebrow">Лента кампуса</span>
+        <h1>Здесь видно, кто реально двигает кампус.</h1>
+        <p>Вклады, открытия и спасибо остаются тут на виду. Если чей-то вклад тебе помог - не жмись, поблагодари.</p>
       </section>
 
       {errorMessage ? <p className="inline-error">{errorMessage}</p> : null}
 
       <section className="feed-list">
         {items.length === 0 ? (
-          <p>No activity yet. Be the first to contribute to a campus project.</p>
+          <p>Пока тихо. Впишись в первый проект и запусти движ.</p>
         ) : (
           items.map((item) => (
             <FeedItemRow

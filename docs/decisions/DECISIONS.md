@@ -103,6 +103,22 @@ Consequences:
 - API adds five endpoints under `/api/v1/projects`, `/api/v1/contributions`, `/api/v1/feed`.
 - Web gains Projects and Feed tabs; `main.tsx` splits into feature folders.
 
+## 2026-04-22 - Develop the MVP as a Russian-first product
+
+Decision: treat the current MVP as a Russian-first Telegram Mini App for a Russian-speaking school/university audience; keep user-facing product copy in Russian by default and postpone full localization to a later dedicated task.
+
+Rationale:
+
+- the product name, humor, and social fantasy are rooted in Russian-speaking student culture;
+- copy tone, reward text, and social surfaces work better when written natively for the target audience instead of being translated later from English;
+- storing `locale` now does not require multilingual UI behavior in the current phases.
+
+Consequences:
+
+- new user-facing text, seed display copy, reward copy, and UX labels should default to Russian unless a task explicitly says otherwise;
+- layered slang is allowed in brand/social moments, but navigation, onboarding, and system text must stay clear;
+- current English user-facing text may be migrated in a focused follow-up pass without changing the BUILD-P2 feature contract.
+
 ## 2026-04-21 - Create packages/contracts for BUILD-P1 shared API schemas
 
 Decision: introduce `packages/contracts` in BUILD-P1 as the shared source for archetypes, actions, and profile/action DTOs.

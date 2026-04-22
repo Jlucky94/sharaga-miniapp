@@ -12,7 +12,7 @@ export function StatusPanel({
   return (
     <main className="app-shell">
       <section className={`hero-panel hero-panel--${tone}`}>
-        <span className="eyebrow">Sharaga</span>
+        <span className="eyebrow">Шарага</span>
         <h1>{title}</h1>
         <p>{message}</p>
       </section>

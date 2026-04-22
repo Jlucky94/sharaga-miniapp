@@ -779,10 +779,22 @@ export class InMemoryAppStore implements AppStore {
   private nextProject(kind: 'notes' | 'gym' | 'festival', threshold: number, affinity: 'botan' | 'sportsman' | 'partygoer'): StoredProject {
     const id = randomUUID();
     const now = new Date();
+    const title =
+      kind === 'notes'
+        ? 'Общие конспекты'
+        : kind === 'gym'
+          ? 'Кампусная качалка'
+          : 'Сцена для движа';
+    const description =
+      kind === 'notes'
+        ? 'Соберите общий архив конспектов, чтобы своим было проще готовиться к зачетам и экзаменам.'
+        : kind === 'gym'
+          ? 'Прокачайте зал, чтобы всем было проще держать форму, восстанавливаться и не сыпаться перед общими делами.'
+          : 'Соберите сцену для движа, чтобы у всех появилось место, где можно собраться, пошуметь и словить общий вайб.';
     return {
       id, kind,
-      title: kind === 'notes' ? 'Shared Notes' : kind === 'gym' ? 'Campus Gym' : 'Festival Stage',
-      description: '',
+      title,
+      description,
       threshold,
       progress: 0,
       affinity,
@@ -1052,7 +1064,7 @@ export class InMemoryAppStore implements AppStore {
     const items: FeedItem[] = [];
     for (const e of page) {
       const user = this.usersById.get(e.userId);
-      const userFirstName = user?.firstName ?? 'Unknown';
+      const userFirstName = user?.firstName ?? 'Кто-то';
       const payload = e.payload;
       const projectId = payload.projectId as string | undefined;
       const project = projectId ? this.projects.get(projectId) : undefined;

@@ -9,6 +9,12 @@ type ProjectsScreenProps = {
   onProfileUpdate: () => void;
 };
 
+const archetypeLabels = {
+  botan: 'Ботан',
+  sportsman: 'Спортик',
+  partygoer: 'Тусовщик'
+} as const;
+
 export function ProjectsScreen({ accessToken, onProfileUpdate }: ProjectsScreenProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +28,7 @@ export function ProjectsScreen({ accessToken, onProfileUpdate }: ProjectsScreenP
       const data = await listProjects(accessToken);
       setProjects(data.projects);
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to load projects');
+      setErrorMessage(err instanceof Error ? err.message : 'Не удалось загрузить проекты');
     } finally {
       setLoading(false);
     }
@@ -47,7 +53,7 @@ export function ProjectsScreen({ accessToken, onProfileUpdate }: ProjectsScreenP
       await load();
       onProfileUpdate();
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to contribute');
+      setErrorMessage(err instanceof Error ? err.message : 'Не удалось вложиться в проект');
     } finally {
       setPendingId(null);
     }
@@ -61,7 +67,7 @@ export function ProjectsScreen({ accessToken, onProfileUpdate }: ProjectsScreenP
       await load();
       onProfileUpdate();
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to claim benefit');
+      setErrorMessage(err instanceof Error ? err.message : 'Не удалось забрать бонус');
     } finally {
       setPendingId(null);
     }
@@ -71,8 +77,8 @@ export function ProjectsScreen({ accessToken, onProfileUpdate }: ProjectsScreenP
     return (
       <main className="app-shell">
         <section className="hero-panel hero-panel--checking">
-          <span className="eyebrow">Campus</span>
-          <h1>Loading projects...</h1>
+          <span className="eyebrow">Проекты</span>
+          <h1>Подгружаем проекты...</h1>
         </section>
       </main>
     );
@@ -81,9 +87,9 @@ export function ProjectsScreen({ accessToken, onProfileUpdate }: ProjectsScreenP
   return (
     <main className="app-shell">
       <section className="hero-panel">
-        <span className="eyebrow">Campus Projects</span>
-        <h1>Contribute to shared goals.</h1>
-        <p>Your contribution helps everyone — and when a project unlocks, others can thank you for it.</p>
+        <span className="eyebrow">Проекты кампуса</span>
+        <h1>Вкладывайся в общий движ.</h1>
+        <p>Твой вклад двигает проект вперед, а когда проект открывается, другие могут забрать бонус и сказать тебе спасибо.</p>
       </section>
 
       {errorMessage ? <p className="inline-error">{errorMessage}</p> : null}
@@ -92,12 +98,13 @@ export function ProjectsScreen({ accessToken, onProfileUpdate }: ProjectsScreenP
         {projects.map((project) => {
           const progressPct = Math.min(100, Math.round((project.progress / project.threshold) * 100));
           const isPending = pendingId === project.id;
+          const isContributor = project.userContribution > 0;
           const canContribute = !project.unlocked;
-          const canClaim = project.unlocked && !project.userHasClaimed;
+          const canClaim = project.unlocked && !project.userHasClaimed && !isContributor;
 
           return (
             <article key={project.id} className="card">
-              <span className="card-tag">{project.affinity ?? 'Any'}</span>
+              <span className="card-tag">{project.affinity ? archetypeLabels[project.affinity] : 'Для всех'}</span>
               <h2>{project.title}</h2>
               <p>{project.description}</p>
 
@@ -106,8 +113,8 @@ export function ProjectsScreen({ accessToken, onProfileUpdate }: ProjectsScreenP
               </div>
               <p className="progress-label">
                 {project.unlocked
-                  ? 'Unlocked'
-                  : `${project.progress} / ${project.threshold} contributions`}
+                  ? 'Открыто'
+                  : `${project.progress} / ${project.threshold} вкладов`}
               </p>
 
               {canContribute && (
@@ -116,7 +123,7 @@ export function ProjectsScreen({ accessToken, onProfileUpdate }: ProjectsScreenP
                   disabled={isPending}
                   onClick={() => void handleContribute(project.id)}
                 >
-                  {isPending ? 'Contributing...' : 'Contribute'}
+                  {isPending ? 'Вкладываемся...' : 'Вложиться'}
                 </button>
               )}
 
@@ -126,12 +133,16 @@ export function ProjectsScreen({ accessToken, onProfileUpdate }: ProjectsScreenP
                   disabled={isPending}
                   onClick={() => void handleClaim(project.id)}
                 >
-                  {isPending ? 'Claiming...' : 'Claim benefit'}
+                  {isPending ? 'Забираем...' : 'Забрать бонус'}
                 </button>
               )}
 
+              {project.unlocked && isContributor && (
+                <p className="inline-success">Ты уже вложился в этот проект. Бонус забирают те, кому твой вклад помог.</p>
+              )}
+
               {project.unlocked && project.userHasClaimed && (
-                <p className="inline-success">Benefit claimed</p>
+                <p className="inline-success">Бонус уже у тебя</p>
               )}
             </article>
           );

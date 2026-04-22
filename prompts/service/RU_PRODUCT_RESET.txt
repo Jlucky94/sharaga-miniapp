@@ -1,0 +1,31 @@
+Return to the active phase and keep its scope unchanged.
+
+This project is a Russian-first social Telegram Mini App for Russian-speaking school and university youth in Russia. Treat that as the default product frame for all user-facing work.
+
+Your job in this prompt is to align the current state to that frame without adding new mechanics, new systems, or phase creep.
+
+Required behavior:
+
+- do not change the active phase;
+- do not add features, currencies, modes, or architecture outside the current phase contract;
+- convert existing user-facing copy, screen titles, CTA labels, reward copy, feed wording, seed display text, and other visible naming to Russian;
+- adapt wording for a Russian-speaking school/university audience;
+- prefer concise, phone-friendly, Telegram-native phrasing;
+- use moderate local student slang only when it strengthens brand voice, social flavor, or reward moments;
+- keep navigation, onboarding, system states, and error messages clearer than they are "fun";
+- when in doubt, choose readable Russian UI over edgy wording;
+- do not romanticize prison/criminal aesthetics;
+- do not make the tone insulting, degrading, or toxically aggressive.
+
+Tone target:
+
+- socially recognizable to Russian students;
+- playful, slightly cheeky, locally grounded;
+- clear enough that a new user immediately understands what to do.
+
+Output expectations:
+
+- list the touched modules before broad edits;
+- keep changes inside the current product slice;
+- update docs/status if the product wording or project guidance changed in substance;
+- preserve existing working flows while changing copy and naming.
