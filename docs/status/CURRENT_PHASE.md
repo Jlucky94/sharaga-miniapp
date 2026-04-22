@@ -93,8 +93,29 @@ Contract points verified:
 | State consistent after repeated requests and reload | ✅ social.scenario.test.ts |
 | Two-account end-to-end scenario | ✅ social.scenario.test.ts |
 
-Notes:
-- Docker was unavailable in this session; `prisma:migrate:deploy` and `prisma:seed` were not run against a live DB. Tests use `InMemoryAppStore` and do not require PostgreSQL.
+Live DB verification (Docker):
+- `docker compose up -d db` ✅ — PostgreSQL 16 container started.
+- `prisma:migrate:deploy` ✅ — migration `20260422000000_build_p2_social` applied; all 2 migrations current.
+- `prisma:seed` ✅ — 3 campus projects upserted (notes/gym/festival); re-run idempotent.
+- Live two-account API smoke (festival project, threshold=4):
+
+  | Step | Result |
+  |---|---|
+  | P1 regression — new profile saved after archetype select | ✅ archetype=partygoer, energy=3 |
+  | A contributes 3x — progress 1→3, energy depletes correctly | ✅ |
+  | B contributes 1x — progress=4/4, unlocked=true | ✅ |
+  | A reputation after unlock | ✅ reputation=3 |
+  | C (non-contributor) claims benefit — softCurrency granted | ✅ softCurrency=2 |
+  | C duplicate claim | ✅ BENEFIT_ALREADY_CLAIMED |
+  | B tries to claim (contributor exclusion) | ✅ CONTRIBUTOR_CANNOT_CLAIM |
+  | A feed shows benefit/unlock/contribution/like events with projectTitle | ✅ all 4 kinds present |
+  | C likes A's contribution | ✅ like recorded |
+  | C duplicate like | ✅ ALREADY_LIKED |
+  | A self-like | ✅ SELF_LIKE |
+  | A final reputation after unlock + like | ✅ reputation=6 |
+  | Reload — re-auth A, same profile state | ✅ archetype=partygoer reputation=6 |
+  | Feed cursor pagination | ✅ nextCursor returned, page 2 loads |
+
 - Web UI smoke (browser click-through) was not performed; browser automation is a known gap for this phase.
 
 ## Next phase
