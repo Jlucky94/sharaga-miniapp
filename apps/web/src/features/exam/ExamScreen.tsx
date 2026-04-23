@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { ExamParty, ExamRunResult, ExamState, PartyCapacity } from '@sharaga/contracts';
 
 import { getExamState, leaveParty, queueForExam, setPartyReady } from '../../lib/api.js';
+import { StatusPanel } from '../home/StatusPanel.js';
 
 const capacityOptions: PartyCapacity[] = [3, 4, 5];
 const archetypeLabels = {
@@ -18,15 +19,21 @@ type ExamScreenProps = {
 
 export function ExamScreen({ accessToken, onProfileUpdate }: ExamScreenProps) {
   const [state, setState] = useState<ExamState | null>(null);
+  const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedCapacity, setSelectedCapacity] = useState<PartyCapacity>(3);
   const readyValueRef = useRef(false);
 
   const load = useCallback(async () => {
-    const next = await getExamState(accessToken);
-    setState(next);
-    readyValueRef.current = Boolean(next.party?.members.find((member) => member.isCurrentUser)?.readyAt);
+    try {
+      const next = await getExamState(accessToken);
+      setState(next);
+      setErrorMessage(null);
+      readyValueRef.current = Boolean(next.party?.members.find((member) => member.isCurrentUser)?.readyAt);
+    } finally {
+      setLoading(false);
+    }
   }, [accessToken]);
 
   useEffect(() => {
@@ -84,14 +91,23 @@ export function ExamScreen({ accessToken, onProfileUpdate }: ExamScreenProps) {
     }
   }
 
+  if (loading) {
+    return <StatusPanel title="Подгружаем экзамен" message="Проверяем текущую пати, очередь и последний прогон." tone="checking" />;
+  }
+
   if (!state) {
     return (
-      <main className="app-shell">
-        <section className="hero-panel hero-panel--checking">
-          <span className="eyebrow">Экзамен</span>
-          <h1>Подгружаем общий экзамен...</h1>
-        </section>
-      </main>
+      <StatusPanel
+        title="Экзамен временно недоступен"
+        message={errorMessage ?? 'Не удалось загрузить состояние экзамена.'}
+        tone="error"
+        actionLabel="Обновить"
+        onAction={() => {
+          setLoading(true);
+          setErrorMessage(null);
+          void load();
+        }}
+      />
     );
   }
 

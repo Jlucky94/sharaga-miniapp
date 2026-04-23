@@ -21,6 +21,11 @@ type ApiError = {
   message?: string;
 };
 
+const API_TIMEOUT_MS = 10_000;
+const TEMPORARY_UNAVAILABLE_MESSAGE = 'Сервис временно недоступен. Попробуй еще раз чуть позже.';
+const NETWORK_ERROR_MESSAGE = 'Не удалось связаться с сервером. Проверь соединение и попробуй снова.';
+const TIMEOUT_ERROR_MESSAGE = 'Сервер отвечает слишком долго. Попробуй еще раз.';
+
 async function readJson(response: Response) {
   try {
     return (await response.json()) as unknown;
@@ -30,7 +35,31 @@ async function readJson(response: Response) {
 }
 
 async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  return fetch(url, options);
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => {
+    controller.abort();
+  }, API_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(TIMEOUT_ERROR_MESSAGE);
+    }
+
+    throw new Error(NETWORK_ERROR_MESSAGE);
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+async function expectJson<T>(response: Response, fallbackMessage: string): Promise<T> {
+  if (!response.ok) {
+    const error = (await readJson(response)) as ApiError | null;
+    throw new Error(response.status >= 500 ? TEMPORARY_UNAVAILABLE_MESSAGE : error?.message ?? fallbackMessage);
+  }
+
+  return (await response.json()) as T;
 }
 
 export async function authenticate(initData: string): Promise<AuthResponse> {
@@ -40,12 +69,7 @@ export async function authenticate(initData: string): Promise<AuthResponse> {
     body: JSON.stringify({ initData })
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось войти через Telegram');
-  }
-
-  return (await response.json()) as AuthResponse;
+  return expectJson<AuthResponse>(response, 'Не удалось войти через Telegram');
 }
 
 export async function getProfile(accessToken: string): Promise<ProfileResponse> {
@@ -53,12 +77,17 @@ export async function getProfile(accessToken: string): Promise<ProfileResponse> 
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось загрузить профиль');
-  }
+  return expectJson<ProfileResponse>(response, 'Не удалось загрузить профиль');
+}
 
-  return (await response.json()) as ProfileResponse;
+export async function setWriteAccess(accessToken: string, granted: boolean): Promise<{ writeAccessGranted: boolean }> {
+  const response = await apiFetch('/api/v1/notifications/write-access', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ granted })
+  });
+
+  return expectJson<{ writeAccessGranted: boolean }>(response, 'Не удалось сохранить доступ к уведомлениям');
 }
 
 export async function selectArchetype(accessToken: string, archetype: Archetype): Promise<ProfileResponse> {
@@ -68,12 +97,7 @@ export async function selectArchetype(accessToken: string, archetype: Archetype)
     body: JSON.stringify({ archetype })
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось выбрать роль');
-  }
-
-  return (await response.json()) as ProfileResponse;
+  return expectJson<ProfileResponse>(response, 'Не удалось выбрать роль');
 }
 
 export async function performAction(
@@ -86,12 +110,7 @@ export async function performAction(
     body: JSON.stringify({ actionId })
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось выполнить действие');
-  }
-
-  return (await response.json()) as ProfileResponse & { result: ActionResult };
+  return expectJson<ProfileResponse & { result: ActionResult }>(response, 'Не удалось выполнить действие');
 }
 
 export async function listProjects(accessToken: string): Promise<{ projects: Project[] }> {
@@ -99,12 +118,7 @@ export async function listProjects(accessToken: string): Promise<{ projects: Pro
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось загрузить проекты');
-  }
-
-  return (await response.json()) as { projects: Project[] };
+  return expectJson<{ projects: Project[] }>(response, 'Не удалось загрузить проекты');
 }
 
 export async function contributeToProject(
@@ -118,12 +132,10 @@ export async function contributeToProject(
     body: JSON.stringify({ requestId, amount: 1 })
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось вложиться в проект');
-  }
-
-  return (await response.json()) as { profile: ProfileResponse['profile']; project: Project; unlocked: boolean; contribution: { id: string } };
+  return expectJson<{ profile: ProfileResponse['profile']; project: Project; unlocked: boolean; contribution: { id: string } }>(
+    response,
+    'Не удалось вложиться в проект'
+  );
 }
 
 export async function claimBenefit(
@@ -135,27 +147,16 @@ export async function claimBenefit(
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось забрать бонус');
-  }
-
-  return (await response.json()) as { profile: ProfileResponse['profile'] };
+  return expectJson<{ profile: ProfileResponse['profile'] }>(response, 'Не удалось забрать бонус');
 }
 
-export async function likeContribution(
-  accessToken: string,
-  contributionId: string
-): Promise<void> {
+export async function likeContribution(accessToken: string, contributionId: string): Promise<void> {
   const response = await apiFetch(`/api/v1/contributions/${contributionId}/like`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось отправить спасибо');
-  }
+  await expectJson<unknown>(response, 'Не удалось отправить спасибо');
 }
 
 export async function getFeed(
@@ -167,12 +168,7 @@ export async function getFeed(
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось загрузить ленту');
-  }
-
-  return (await response.json()) as { items: FeedItem[]; nextCursor: string | null };
+  return expectJson<{ items: FeedItem[]; nextCursor: string | null }>(response, 'Не удалось загрузить ленту');
 }
 
 export async function getExamState(accessToken: string): Promise<ExamState> {
@@ -180,12 +176,7 @@ export async function getExamState(accessToken: string): Promise<ExamState> {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось загрузить экзамен');
-  }
-
-  return (await response.json()) as ExamState;
+  return expectJson<ExamState>(response, 'Не удалось загрузить экзамен');
 }
 
 export async function queueForExam(accessToken: string, capacity: PartyCapacity): Promise<{ party: ExamParty }> {
@@ -195,12 +186,7 @@ export async function queueForExam(accessToken: string, capacity: PartyCapacity)
     body: JSON.stringify({ capacity })
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось встать в очередь');
-  }
-
-  return (await response.json()) as { party: ExamParty };
+  return expectJson<{ party: ExamParty }>(response, 'Не удалось встать в очередь');
 }
 
 export async function setPartyReady(
@@ -214,12 +200,7 @@ export async function setPartyReady(
     body: JSON.stringify({ ready })
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось обновить готовность');
-  }
-
-  return (await response.json()) as { party: ExamParty | null; run: ExamRunResult | null };
+  return expectJson<{ party: ExamParty | null; run: ExamRunResult | null }>(response, 'Не удалось обновить готовность');
 }
 
 export async function leaveParty(accessToken: string, partyId: string): Promise<{ party: ExamParty | null }> {
@@ -228,10 +209,5 @@ export async function leaveParty(accessToken: string, partyId: string): Promise<
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
-  if (!response.ok) {
-    const error = (await readJson(response)) as ApiError | null;
-    throw new Error(error?.message ?? 'Не удалось выйти из пати');
-  }
-
-  return (await response.json()) as { party: ExamParty | null };
+  return expectJson<{ party: ExamParty | null }>(response, 'Не удалось выйти из пати');
 }

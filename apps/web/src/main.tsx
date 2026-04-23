@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { App } from './app/App.js';
+import { AppErrorBoundary } from './app/AppErrorBoundary.js';
 import './styles.css';
 
 declare global {
@@ -11,6 +12,7 @@ declare global {
         initData?: string;
         ready?: () => void;
         expand?: () => void;
+        requestWriteAccess?: ((callback?: (granted?: boolean) => void) => Promise<boolean> | void);
       };
     };
   }
@@ -18,6 +20,8 @@ declare global {
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </React.StrictMode>
 );

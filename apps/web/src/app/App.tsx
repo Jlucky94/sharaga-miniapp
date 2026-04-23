@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { ArchetypePicker } from '../features/home/ArchetypePicker.js';
 import { HomeScreen } from '../features/home/HomeScreen.js';
@@ -21,12 +21,23 @@ function useTicker(intervalMs: number) {
 }
 
 export function App() {
-  const { state, bootstrap, chooseArchetype, refreshProfileState, runAction } = useAppState();
+  const { state, bootstrap, chooseArchetype, refreshProfileState, runAction, enableWriteAccess } = useAppState();
   const [activeTab, setActiveTab] = useState<TabId>('home');
+  const bootstrapCleanupRef = useRef<ReturnType<typeof bootstrap> | null>(null);
   const tick = useTicker(1000);
 
   useEffect(() => {
-    return bootstrap();
+    const timer = window.setTimeout(() => {
+      bootstrapCleanupRef.current = bootstrap();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+      if (typeof bootstrapCleanupRef.current === 'function') {
+        bootstrapCleanupRef.current();
+      }
+      bootstrapCleanupRef.current = null;
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -39,7 +50,17 @@ export function App() {
   }
 
   if (state.status === 'error') {
-    return <StatusPanel title="Сессия не открылась" message={state.message} tone="error" />;
+    return (
+      <StatusPanel
+        title="Сессия не открылась"
+        message={state.message}
+        tone="error"
+        actionLabel="Попробовать снова"
+        onAction={() => {
+          bootstrap();
+        }}
+      />
+    );
   }
 
   if (!state.profileData.profile.archetype) {
@@ -60,6 +81,7 @@ export function App() {
           tick={tick}
           onRefresh={refreshProfileState}
           onRunAction={runAction}
+          onEnableWriteAccess={enableWriteAccess}
         />
       )}
       {activeTab === 'projects' && (

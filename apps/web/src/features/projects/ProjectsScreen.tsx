@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Project } from '@sharaga/contracts';
 
 import { claimBenefit, contributeToProject, listProjects } from '../../lib/api.js';
+import { StatusPanel } from '../home/StatusPanel.js';
 
 type ProjectsScreenProps = {
   accessToken: string;
@@ -74,13 +75,22 @@ export function ProjectsScreen({ accessToken, onProfileUpdate }: ProjectsScreenP
   }
 
   if (loading) {
+    return <StatusPanel title="Подгружаем проекты" message="Проверяем, где кампусу прямо сейчас нужен вклад." tone="checking" />;
+  }
+
+  if (errorMessage && projects.length === 0) {
     return (
-      <main className="app-shell">
-        <section className="hero-panel hero-panel--checking">
-          <span className="eyebrow">Проекты</span>
-          <h1>Подгружаем проекты...</h1>
-        </section>
-      </main>
+      <StatusPanel
+        title="Проекты временно недоступны"
+        message={errorMessage}
+        tone="error"
+        actionLabel="Попробовать снова"
+        onAction={() => {
+          setLoading(true);
+          setErrorMessage(null);
+          void load();
+        }}
+      />
     );
   }
 
@@ -93,6 +103,13 @@ export function ProjectsScreen({ accessToken, onProfileUpdate }: ProjectsScreenP
       </section>
 
       {errorMessage ? <p className="inline-error">{errorMessage}</p> : null}
+
+      {projects.length === 0 ? (
+        <section className="result-panel">
+          <h2>Пока тут тихо</h2>
+          <p>Проекты временно не загрузились или для этого окружения еще не подготовлен сид мира.</p>
+        </section>
+      ) : null}
 
       <section className="card-grid">
         {projects.map((project) => {

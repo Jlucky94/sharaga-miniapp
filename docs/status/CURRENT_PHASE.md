@@ -2,31 +2,37 @@
 
 ## Active phase
 
-Phase: CHECK-C3 - Cooperative Event Control
+Phase: BUILD-P4 - Alpha Candidate
 
 ## Goal
 
-Verify BUILD-P0, BUILD-P1, BUILD-P2, and BUILD-P3 cumulatively so we can honestly say the cooperative Exam closes its contract without breaking the earlier shell, auth, profile, or async social loops.
+Harden the existing BUILD-P1, BUILD-P2, and BUILD-P3 loops into a first alpha-ready slice without adding new game systems: the world must not feel empty, critical failures must degrade safely, notifications must be best-effort only, browser smoke must exist, and release/staging/recovery steps must be reproducible from docs.
 
 ## In scope
 
-- Confirm the early player path still works: Telegram auth, profile load, archetype choice, one action, reload.
-- Confirm async social still works: shared projects, benefit claim, thanks/likes, feed visibility, no duplicate rewards.
-- Confirm cooperative Exam still works end to end: queue + autofill, ready check, auto-start, deterministic outcome engine, one-time rewards, shared feed result.
-- Fix only blockers that prevent the cooperative event contract from being honestly closed.
+- explicit alpha seed: base projects + demo-world actors/events;
+- persisted Telegram write-access consent and bot notification dedupe;
+- feed/UI markers for demo activity;
+- safe API 500 handling and recoverable frontend states;
+- Playwright smoke e2e for first value, social loop, and Exam loop;
+- release checklist, staging deploy notes, and DB recovery/rollback notes;
+- parameterized Docker/GHCR/VPS deploy workflow for staging vs production.
 
 ## Out of scope
 
-- BUILD-P4 hardening such as browser automation, release checklists, notifications, or staging workflows.
-- Manual invites, public party browser, PvP, guilds, seasons, marketplace, or any new game mode.
-- Desktop-first UX work or separate desktop layouts.
+- new game modes, currencies, quests, analytics ingestion, invites, or monetization;
+- schedulers/cron for notifications;
+- separate desktop-first UX;
+- infra migration away from the current Docker + GHCR + VPS shape.
 
 ## Required user-visible result
 
-- Early user paths from BUILD-P1 and BUILD-P2 still behave correctly after the Exam work.
-- Player can enter the `Экзамен` tab, choose capacity `3 / 4 / 5`, join queue, and get autofilled into a full party.
-- Full party reaches ready check, final ready auto-starts the Exam, and the run resolves into `success` or `partial_failure`.
-- Rewards survive reload and repeated requests, and the result appears once in the shared feed for both owner and non-owner viewers.
+- fresh user enters, chooses a role, gets first value, and sees a non-empty campus immediately;
+- feed clearly marks demo/system activity as `Демо`;
+- write-access prompt appears only after first value and does not reappear after consent is saved;
+- social thanks/benefit events can trigger best-effort bot notifications without blocking the main path;
+- three-user Exam loop still assembles, resolves, and stays replay-safe;
+- operators have one documented release/staging/recovery path instead of oral knowledge.
 
 ## Mandatory checks for this phase
 
@@ -37,64 +43,55 @@ Verify BUILD-P0, BUILD-P1, BUILD-P2, and BUILD-P3 cumulatively so we can honestl
 - local PostgreSQL reachable through `DATABASE_URL`
 - `pnpm --filter @sharaga/api prisma:migrate:deploy`
 - `pnpm --filter @sharaga/api prisma:seed`
-- `pnpm --filter @sharaga/web gen:init-data` for three distinct dev users
-- live three-account cooperative Exam smoke against PostgreSQL (API-backed or UI-backed)
+- `pnpm --filter @sharaga/web exec playwright install chromium`
+- `pnpm --filter @sharaga/web test:e2e`
 
 ## Done when
 
-- BUILD-P0 through BUILD-P3 regressions stay green.
-- Exam tests explicitly prove:
-  - mixed composition is materially stronger than mono-party;
-  - a fixed-seed `success` path exists;
-  - a fixed-seed `partial_failure` path exists;
-  - repeated final `ready` does not duplicate `ExamRun`, `ExamReward`, or `exam_completed`.
-- Live PostgreSQL Exam smoke passes with one shared `exam_result` visible to a non-owner account.
-- Docs reflect the real verification state and known gaps honestly.
+- seed is idempotent and produces both base projects and explicit demo-world traces;
+- `GET /api/v1/profile` returns `writeAccessGranted`, and consent persists through `/api/v1/notifications/write-access`;
+- bot notification rows are deduped and do not break action/social/exam endpoints when delivery fails;
+- frontend surfaces loading/retry/temporary-unavailable states for home/projects/feed/exam;
+- smoke e2e proves first value, a two-user social thanks path, and a three-user Exam path;
+- deploy/runbook docs describe production, staging, backup, restore, and rollback honestly.
 
 ## Known gaps
 
-- `apps/web` still uses placeholder `node --test`; browser automation remains a later phase concern.
-- This verification pass used a live PostgreSQL API-backed three-account smoke instead of a dedicated browser-only three-client manual run.
+- `apps/web` still has placeholder `node --test` for non-browser unit tests; browser smoke now lives in Playwright instead of that script.
+- local/browser notification smoke uses a documented local Telegram API stub through `TELEGRAM_BOT_API_BASE_URL`; public Telegram edge delivery is still covered by API best-effort/failure tests rather than the Playwright suite.
 
 ## Issues fixed in this pass
 
-- Added explicit CHECK-C3 regressions for deterministic `success` and `partial_failure` Exam outcomes, material role-composition advantage, non-owner feed visibility, and idempotent final `ready`.
-- Fixed the real PostgreSQL `/api/v1/parties/queue` path, which was failing with `500` because the runtime Prisma client did not include BUILD-P3 models under a locked Windows engine DLL workflow.
-- Moved Prisma client generation to a repo-local generated client and added a Windows-safe postinstall/generate fallback to `--no-engine` when the engine DLL is already locked by a running dev process.
+- Added explicit demo-world seed with demo-tagged actors/feed origin, plus idempotent seed guards.
+- Persisted `writeAccessGranted`, added `BotNotification` storage with unique `dedupeKey`, and wired event-triggered confirmation/social/exam notification templates.
+- Replaced raw 500 error leakage with stable safe responses and unified frontend retry/unavailable states.
+- Added Playwright smoke infra with Telegram WebApp stub, multi-user contexts, local Telegram send stub, and serial alpha scenarios.
+- Parameterized the Docker deploy workflow so staging uses the same shape as production with different environment/tag/path/port values.
+- Fixed a real startup race: React StrictMode no longer leaves the app stuck in `checking`, and concurrent first-auth profile creation no longer 500s on Prisma `P2002`.
 
 ## Last verification
 
-Date: 2026-04-22 (re-run)
+Date: 2026-04-22
 
 Commands run (from repo root unless noted):
 
-- `pnpm install` ✅ — workspace already up to date; Prisma client regenerated with engine (DLL unlocked after prior session ended).
-- `pnpm check` ✅ — zero TypeScript errors across contracts, API, and web.
-- `pnpm test` ✅ — 39 API tests + 4 contract tests pass, 0 fail.
-- `pnpm build` ✅ — contracts, API, and web compile; web production bundle built successfully.
-- `docker compose up -d db` ✅ — local PostgreSQL service reachable.
-- `pnpm --filter @sharaga/api prisma:migrate:deploy` ✅ — no pending migrations, schema current.
-- `pnpm --filter @sharaga/api prisma:seed` ✅ — 3 campus projects upserted.
-- `pnpm --filter @sharaga/web gen:init-data` x3 ✅ — distinct dev initData generated for Alice(81001)/Bob(81002)/Cora(81003).
-- `node apps/api/scripts/smoke-c3.mjs` ✅ — all 7 smoke points passed against live PostgreSQL:
-  - queue → full party (ready_check) ✅
-  - all ready → auto-start → outcome `success`, 3 rewards ✅
-  - all three profiles show XP > 0 after run ✅
-  - `/exam` latestRun.partyId matches current party ✅
-  - owner and non-owner (Bob) each see exactly 1 `exam_result` for current partyId ✅
-  - replay final ready returns same run.id, profiles unchanged, feed not duplicated ✅
+- `pnpm install` ✅
+- `pnpm check` ✅
+- `pnpm test` ✅
+- `pnpm build` ✅
+- `docker compose up -d db` ✅
+- `pnpm --filter @sharaga/api prisma:migrate:deploy` ✅
+- `pnpm --filter @sharaga/api prisma:seed` ✅
+- `pnpm --filter @sharaga/web exec playwright install chromium` ✅
+- `pnpm --filter @sharaga/web test:e2e` ✅
 
-Contract points verified locally:
+Smoke points verified locally:
 
-| CHECK-C3 point | Result |
-|---|---|
-| Earlier user paths are not broken | ✅ existing auth/profile suites + root `pnpm test` |
-| Party can be created and assembled | ✅ `exam.queue.test.ts` + live PostgreSQL smoke |
-| Exam depends on role composition | ✅ `exam.unit.test.ts` |
-| Successful and partially failed paths both exist | ✅ `exam.unit.test.ts` fixed-seed cases |
-| Rewards and result records do not duplicate | ✅ `exam.scenario.test.ts` + live PostgreSQL smoke idempotency check |
-| Event result appears in shared social space | ✅ `exam.scenario.test.ts` + live non-owner (Bob) feed check |
+- fresh user auth -> archetype -> first action -> write-access CTA -> consent persisted ✅
+- demo feed and demo-world markers visible on first entry ✅
+- two-user contribution -> thanks path -> one social notification row ✅
+- three-user Exam queue -> ready -> auto-start -> replay-safe exam notifications ✅
 
 ## Next phase
 
-BUILD-P4 - Alpha Candidate
+CHECK-C4 - Alpha Gate

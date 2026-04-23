@@ -2,7 +2,8 @@ import { useState } from 'react';
 
 import type { ActionId, ActionResult, ProfileResponse } from '@sharaga/contracts';
 
-import { authenticate, getProfile, performAction, selectArchetype } from '../lib/api.js';
+import { authenticate, getProfile, performAction, selectArchetype, setWriteAccess } from '../lib/api.js';
+import { requestTelegramWriteAccess } from '../lib/telegram.js';
 import type { Archetype } from '@sharaga/contracts';
 
 export type ReadyState = {
@@ -10,7 +11,7 @@ export type ReadyState = {
   accessToken: string;
   profileData: ProfileResponse;
   result: ActionResult | null;
-  pending: 'refresh' | 'archetype' | ActionId | null;
+  pending: 'refresh' | 'archetype' | 'write-access' | ActionId | null;
   errorMessage: string | null;
 };
 
@@ -26,6 +27,7 @@ export function useAppState() {
   const [state, setState] = useState<AppState>({ status: 'checking' });
 
   function bootstrap() {
+    setState({ status: 'checking' });
     window.Telegram?.WebApp?.ready?.();
     window.Telegram?.WebApp?.expand?.();
 
@@ -132,6 +134,7 @@ export function useAppState() {
           profileData: {
             user: response.user,
             profile: response.profile,
+            writeAccessGranted: response.writeAccessGranted,
             serverTime: response.serverTime,
             nextEnergyAt: response.nextEnergyAt
           },
@@ -148,5 +151,66 @@ export function useAppState() {
     }
   }
 
-  return { state, bootstrap, chooseArchetype, refreshProfileState, runAction };
+  async function enableWriteAccess() {
+    setState((current) => {
+      if (current.status !== 'ready') return current;
+      return { ...current, pending: 'write-access', errorMessage: null };
+    });
+
+    const accessToken = state.status === 'ready' ? state.accessToken : null;
+    if (!accessToken) return;
+
+    try {
+      const requestResult = await requestTelegramWriteAccess();
+
+      if (!requestResult.supported) {
+        setState((current) => {
+          if (current.status !== 'ready') return current;
+          return {
+            ...current,
+            pending: null,
+            errorMessage: 'В этой среде Telegram не дает открыть запрос на уведомления. Основной путь всё равно работает.'
+          };
+        });
+        return;
+      }
+
+      if (!requestResult.granted) {
+        setState((current) => {
+          if (current.status !== 'ready') return current;
+          return {
+            ...current,
+            pending: null,
+            errorMessage: 'Доступ к уведомлениям пока не включен. Можешь продолжать без него и вернуться позже.'
+          };
+        });
+        return;
+      }
+
+      const response = await setWriteAccess(accessToken, true);
+      setState((current) => {
+        if (current.status !== 'ready') return current;
+        return {
+          ...current,
+          pending: null,
+          errorMessage: null,
+          profileData: {
+            ...current.profileData,
+            writeAccessGranted: response.writeAccessGranted
+          }
+        };
+      });
+    } catch (error) {
+      setState((current) => {
+        if (current.status !== 'ready') return current;
+        return {
+          ...current,
+          pending: null,
+          errorMessage: error instanceof Error ? error.message : 'Не удалось включить уведомления'
+        };
+      });
+    }
+  }
+
+  return { state, bootstrap, chooseArchetype, refreshProfileState, runAction, enableWriteAccess };
 }

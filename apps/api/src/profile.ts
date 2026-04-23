@@ -20,10 +20,20 @@ export type StoredProfile = ProfileSnapshot & {
   energyUpdatedAt: Date;
 };
 
+export type StoredUser = PublicUser & {
+  writeAccessGranted: boolean;
+  isSeededDemo: boolean;
+};
+
 export type StoredPlayer = {
-  user: PublicUser;
+  user: StoredUser;
   profile: StoredProfile;
 };
+
+function toPublicUser(user: StoredUser): PublicUser {
+  const { writeAccessGranted: _writeAccessGranted, isSeededDemo: _isSeededDemo, ...publicUser } = user;
+  return publicUser;
+}
 
 export function getInitialProfile(userId: string, now: Date): StoredProfile {
   return {
@@ -156,7 +166,7 @@ export function performAction(
 
 export function buildProfileResponse(player: StoredPlayer, now: Date): ProfileResponse {
   return {
-    user: player.user,
+    user: toPublicUser(player.user),
     profile: {
       userId: player.profile.userId,
       archetype: player.profile.archetype,
@@ -167,6 +177,7 @@ export function buildProfileResponse(player: StoredPlayer, now: Date): ProfileRe
       softCurrency: player.profile.softCurrency,
       reputation: player.profile.reputation
     },
+    writeAccessGranted: player.user.writeAccessGranted,
     serverTime: now.toISOString(),
     nextEnergyAt: getNextEnergyAt(player.profile)?.toISOString() ?? null
   };

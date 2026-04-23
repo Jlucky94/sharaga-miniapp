@@ -144,6 +144,7 @@ test('first login creates a profile and repeated login reuses it', async () => {
 
   assert.equal(profileResponse.statusCode, 200);
   assert.equal(profileResponse.json().profile.energy, MAX_ENERGY);
+  assert.equal(profileResponse.json().writeAccessGranted, false);
 
   await app.close();
 });
@@ -290,6 +291,7 @@ test('full first-value loop survives profile reload and repeated login', async (
   assert.equal(reloadedProfile.json().profile.archetypeXp, 6);
   assert.equal(reloadedProfile.json().profile.softCurrency, 1);
   assert.equal(reloadedProfile.json().profile.energy, 2);
+  assert.equal(reloadedProfile.json().writeAccessGranted, false);
 
   const secondAuth = await authenticate(app);
   assert.equal(secondAuth.user.id, firstAuth.user.id);
@@ -308,6 +310,7 @@ test('full first-value loop survives profile reload and repeated login', async (
   assert.equal(reloginProfile.json().profile.archetypeXp, 6);
   assert.equal(reloginProfile.json().profile.softCurrency, 1);
   assert.equal(reloginProfile.json().profile.energy, 2);
+  assert.equal(reloginProfile.json().writeAccessGranted, false);
 
   await app.close();
 });

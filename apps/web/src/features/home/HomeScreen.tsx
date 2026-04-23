@@ -21,7 +21,7 @@ type ReadyState = {
   accessToken: string;
   profileData: ProfileResponse;
   result: ActionResult | null;
-  pending: 'refresh' | 'archetype' | ActionId | null;
+  pending: 'refresh' | 'archetype' | 'write-access' | ActionId | null;
   errorMessage: string | null;
 };
 
@@ -29,12 +29,14 @@ export function HomeScreen({
   state,
   tick,
   onRefresh,
-  onRunAction
+  onRunAction,
+  onEnableWriteAccess
 }: {
   state: ReadyState;
   tick: number;
   onRefresh: (accessToken: string) => Promise<void>;
   onRunAction: (actionId: ActionId) => Promise<void>;
+  onEnableWriteAccess: () => Promise<void>;
 }) {
   const serverOffsetMs = new Date(state.profileData.serverTime).getTime() - Date.now();
   const correctedNow = tick + serverOffsetMs;
@@ -42,6 +44,7 @@ export function HomeScreen({
   const remainingMs = nextEnergyAtMs ? Math.max(0, nextEnergyAtMs - correctedNow) : 0;
   const profile = state.profileData.profile;
   const selectedArchetype = profile.archetype;
+  const shouldOfferWriteAccess = profile.profileXp > 0 && !state.profileData.writeAccessGranted;
 
   const orderedActions = useMemo(() => {
     if (!selectedArchetype) return [...actionIds];
@@ -139,6 +142,25 @@ export function HomeScreen({
       </section>
 
       {state.errorMessage ? <p className="inline-error">{state.errorMessage}</p> : null}
+
+      {shouldOfferWriteAccess ? (
+        <section className="result-panel result-panel--accent">
+          <h2>Не пропусти движ после первого результата</h2>
+          <p>
+            Можно включить мягкие уведомления, чтобы узнать, когда твой вклад кому-то помог,
+            когда тебе прилетело спасибо или когда пати на экзамен уже собрана.
+          </p>
+          <div className="status-actions">
+            <button
+              className="primary-button"
+              disabled={state.pending !== null}
+              onClick={() => void onEnableWriteAccess()}
+            >
+              {state.pending === 'write-access' ? 'Открываем Telegram...' : 'Включить уведомления'}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="result-panel">
         <h2>Последний заметный результат</h2>

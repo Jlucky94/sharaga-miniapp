@@ -30,6 +30,7 @@ From repo root:
 pnpm --filter @sharaga/web dev
 pnpm --filter @sharaga/web check
 pnpm --filter @sharaga/web test
+pnpm --filter @sharaga/web test:e2e
 pnpm --filter @sharaga/web build
 pnpm --filter @sharaga/web gen:init-data
 ```

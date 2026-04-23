@@ -40,11 +40,13 @@ test('profile response schema accepts the expected wire shape', () => {
       softCurrency: 1,
       reputation: 0
     },
+    writeAccessGranted: false,
     serverTime: '2026-04-21T00:00:00.000Z',
     nextEnergyAt: '2026-04-21T00:30:00.000Z'
   });
 
   assert.equal(parsed.profile.energy, 2);
+  assert.equal(parsed.writeAccessGranted, false);
 });
 
 test('request/response schemas stay aligned with action result payloads', () => {

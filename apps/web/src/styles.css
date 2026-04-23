@@ -97,6 +97,13 @@ button {
   margin-top: 14px;
 }
 
+.status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 .eyebrow,
 .card-tag {
   display: inline-flex;
@@ -259,6 +266,19 @@ button {
   margin-top: 12px;
 }
 
+.result-panel--accent {
+  background:
+    linear-gradient(180deg, rgba(29, 103, 135, 0.12), rgba(255, 255, 255, 0.94)),
+    rgba(255, 255, 255, 0.88);
+  border-color: rgba(29, 103, 135, 0.18);
+}
+
+.inline-note {
+  margin-top: 12px;
+  color: #4b5f70;
+  font-size: 0.94rem;
+}
+
 .reward-strip {
   display: flex;
   flex-wrap: wrap;
@@ -368,6 +388,12 @@ button {
   line-height: 1.5;
 }
 
+.feed-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .feed-item--highlight {
   background: rgba(255, 210, 112, 0.15);
   border-color: rgba(197, 128, 27, 0.22);
@@ -376,6 +402,20 @@ button {
 .feed-time {
   font-size: 0.78rem;
   color: #63707d;
+}
+
+.badge-demo {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(197, 128, 27, 0.14);
+  color: #7d5314;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .inline-success {

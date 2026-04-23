@@ -3,6 +3,16 @@ name: Deploy (Docker)
 on:
   push:
     branches: ["master"]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deployment target
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
 
 permissions:
   contents: read
@@ -10,8 +20,13 @@ permissions:
 
 jobs:
   build-and-deploy:
-    environment: sharaga-miniapp
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'staging' && 'sharaga-miniapp-staging' || 'sharaga-miniapp' }}
     runs-on: ubuntu-latest
+    env:
+      OWNER: jlucky94
+      IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'staging' && 'staging' || 'latest' }}
+      DEPLOY_DIR: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'staging' && '/var/www/sharaga-miniapp-staging' || '/var/www/sharaga-miniapp' }}
+      WEB_PORT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'staging' && '8091' || '8090' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -28,7 +43,7 @@ jobs:
           context: .
           file: apps/api/Dockerfile
           push: true
-          tags: ghcr.io/jlucky94/sharaga-miniapp-api:latest
+          tags: ghcr.io/${{ env.OWNER }}/sharaga-miniapp-api:${{ env.IMAGE_TAG }}
 
       - name: Build & push WEB
         uses: docker/build-push-action@v6
@@ -36,7 +51,7 @@ jobs:
           context: .
           file: apps/web/Dockerfile
           push: true
-          tags: ghcr.io/jlucky94/sharaga-miniapp-web:latest
+          tags: ghcr.io/${{ env.OWNER }}/sharaga-miniapp-web:${{ env.IMAGE_TAG }}
 
       - name: Setup SSH
         run: |
@@ -47,7 +62,6 @@ jobs:
 
       - name: Deploy on VPS
         env:
-          OWNER: jlucky94
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
@@ -58,16 +72,16 @@ jobs:
             exit 1
           fi
 
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "OWNER='${OWNER}' TELEGRAM_BOT_TOKEN='${TELEGRAM_BOT_TOKEN}' JWT_SECRET='${JWT_SECRET}' JWT_EXPIRES_IN='${JWT_EXPIRES_IN}' DATABASE_URL='${DATABASE_URL}' bash -s" <<'EOF'
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "OWNER='${OWNER}' IMAGE_TAG='${IMAGE_TAG}' DEPLOY_DIR='${DEPLOY_DIR}' WEB_PORT='${WEB_PORT}' TELEGRAM_BOT_TOKEN='${TELEGRAM_BOT_TOKEN}' JWT_SECRET='${JWT_SECRET}' JWT_EXPIRES_IN='${JWT_EXPIRES_IN}' DATABASE_URL='${DATABASE_URL}' bash -s" <<'EOF'
           set -e
 
-          mkdir -p /var/www/sharaga-miniapp
-          cd /var/www/sharaga-miniapp
+          mkdir -p "$DEPLOY_DIR"
+          cd "$DEPLOY_DIR"
 
           cat > docker-compose.yml <<YAML
           services:
             api:
-              image: ghcr.io/$OWNER/sharaga-miniapp-api:latest
+              image: ghcr.io/$OWNER/sharaga-miniapp-api:$IMAGE_TAG
               environment:
                 - PORT=3001
                 - TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
@@ -77,9 +91,9 @@ jobs:
               restart: unless-stopped
 
             web:
-              image: ghcr.io/$OWNER/sharaga-miniapp-web:latest
+              image: ghcr.io/$OWNER/sharaga-miniapp-web:$IMAGE_TAG
               ports:
-                - "8090:80"
+                - "$WEB_PORT:80"
               depends_on:
                 - api
               restart: unless-stopped
@@ -89,6 +103,6 @@ jobs:
           docker compose up -d
           docker compose ps
           docker compose logs api --tail=100 || true
-          curl -f http://localhost:8090
+          curl -f http://localhost:$WEB_PORT
           docker image prune -f
           EOF

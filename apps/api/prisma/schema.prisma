@@ -38,6 +38,19 @@ enum ExamOutcome {
   partial_failure
 }
 
+enum BotNotificationKind {
+  write_access_confirmed
+  social_payoff
+  exam_update
+  exam_result
+}
+
+enum BotNotificationStatus {
+  pending
+  sent
+  failed
+}
+
 enum ProjectKind {
   notes
   gym
@@ -52,9 +65,12 @@ model User {
   username     String?
   languageCode String?
   photoUrl     String?
+  writeAccessGranted Boolean @default(false)
+  isSeededDemo Boolean @default(false)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   profile      Profile?
+  botNotifications BotNotification[]
 
   @@map("users")
 }
@@ -77,7 +93,7 @@ model Profile {
   benefitClaims   BenefitClaim[]
   partyMembers    PartyMember[]
   examRewards     ExamReward[]
-  ownedParties     Party[]      @relation("PartyOwner")
+  ownedParties    Party[]      @relation("PartyOwner")
 
   @@map("profiles")
 }
@@ -218,4 +234,22 @@ model ExamReward {
   @@unique([examRunId, userId])
   @@index([userId, createdAt])
   @@map("exam_rewards")
+}
+
+model BotNotification {
+  id          String                @id @default(uuid()) @db.Uuid
+  userId      String                @db.Uuid
+  kind        BotNotificationKind
+  dedupeKey   String                @unique
+  status      BotNotificationStatus @default(pending)
+  messageText String
+  payload     Json
+  lastError   String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  sentAt      DateTime?
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("bot_notifications")
 }

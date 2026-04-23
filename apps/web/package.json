@@ -11,7 +11,8 @@
     "gen:init-data": "node scripts/generate-dev-init-data.mjs",
     "build": "tsc -p tsconfig.json && vite build",
     "test": "node --test",
-    "check": "tsc -p tsconfig.json --noEmit"
+    "test:e2e": "playwright test",
+    "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.e2e.json --noEmit"
   },
   "dependencies": {
     "@sharaga/contracts": "workspace:*",
@@ -19,6 +20,8 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.1",
+    "@types/node": "^22.10.1",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
     "typescript": "^5.6.3",

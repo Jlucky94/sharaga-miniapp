@@ -50,6 +50,7 @@ API env example lives at `apps/api/.env.example`.
 Required for API:
 
 - `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_BOT_API_BASE_URL` optional override for local notification smoke or a Telegram API stub
 - `JWT_SECRET`
 - `DATABASE_URL`
 
@@ -102,6 +103,11 @@ Seed the current database with the 3 campus projects used by BUILD-P2 and BUILD-
 pnpm --filter @sharaga/api prisma:seed
 ```
 
+Current BUILD-P4 seed is two-layer and idempotent:
+
+- base projects: notes, gym, festival;
+- demo world: 3 demo users with visible progress/social traces marked as `Демо`.
+
 ## Generate local Telegram initData
 
 ```powershell
@@ -131,12 +137,24 @@ Build all packages:
 pnpm build
 ```
 
+Run the web smoke suite:
+
+```powershell
+pnpm --filter @sharaga/web test:e2e
+```
+
+If Chromium is not installed yet for Playwright:
+
+```powershell
+pnpm --filter @sharaga/web exec playwright install chromium
+```
+
 ## Current test shape
 
 - `packages/contracts` uses `tsx --test`.
 - `apps/api` uses `tsx --test`.
-- `apps/web` currently has a placeholder `node --test` script.
-- Playwright is still the target e2e runner for later phases.
+- `apps/web` keeps `node --test` as a placeholder unit-test script.
+- `apps/web` uses Playwright for BUILD-P4 browser smoke in `pnpm --filter @sharaga/web test:e2e`.
 
 ## Manual first-value smoke
 
@@ -149,7 +167,7 @@ $env:TELEGRAM_BOT_TOKEN="123:token"
 $env:JWT_SECRET="dev-jwt-secret"
 ```
 
-2. Apply the checked-in migrations up through BUILD-P3 and seed the shared projects:
+2. Apply the checked-in migrations and seed the shared alpha world:
 
 ```powershell
 pnpm --filter @sharaga/api prisma:migrate:deploy
@@ -209,10 +227,43 @@ pnpm --filter @sharaga/web gen:init-data
 8. Confirm the same `exam_result` is visible for a non-owner user as well as the owner.
 9. Repeat the final `POST /api/v1/parties/:id/ready` once more and confirm rewards/feed state do not change.
 
-## Future runbooks to add
+## Playwright alpha smoke
 
-- DB reset.
-- Playwright e2e.
-- Staging deploy.
-- Rollback.
-- Bot notification smoke test.
+1. Start PostgreSQL locally and export the API env vars:
+
+```powershell
+docker compose up -d db
+$env:DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/sharaga_miniapp"
+$env:TELEGRAM_BOT_TOKEN="dev-bot-token"
+$env:JWT_SECRET="dev-jwt-secret"
+```
+
+2. Install Chromium once if Playwright has not downloaded it yet:
+
+```powershell
+pnpm --filter @sharaga/web exec playwright install chromium
+```
+
+3. Run the smoke suite:
+
+```powershell
+pnpm --filter @sharaga/web test:e2e
+```
+
+What this suite covers:
+
+- fresh user auth -> archetype -> first action -> write-access CTA;
+- visible demo feed/demo-world markers;
+- two-user contribution -> thanks path with social notification row;
+- three-user Exam queue -> ready -> auto-start -> replay-safe notification dedupe.
+
+Notes:
+
+- the suite starts API/web automatically, migrates the DB, resets it, re-runs the seed, and uses a local Telegram API stub through `TELEGRAM_BOT_API_BASE_URL`;
+- the suite still requires a real PostgreSQL reachable through `DATABASE_URL`.
+
+## Additional runbooks
+
+- [Release Checklist](./RELEASE_CHECKLIST.md)
+- [Staging Deploy](./STAGING.md)
+- [Recovery And Rollback](./RECOVERY.md)

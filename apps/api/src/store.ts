@@ -18,7 +18,7 @@ import {
   type StoredExamParty,
   type StoredExamPartyMember
 } from './exam.js';
-import { getInitialProfile, type StoredPlayer, type StoredProfile } from './profile.js';
+import { getInitialProfile, type StoredPlayer, type StoredProfile, type StoredUser } from './profile.js';
 import {
   applyReputationDelta,
   REPUTATION_ON_LIKE,
@@ -108,6 +108,32 @@ export type StoredExamRun = {
   resolvedAt: Date;
 };
 
+export type BotNotificationKind =
+  | 'write_access_confirmed'
+  | 'social_payoff'
+  | 'exam_update'
+  | 'exam_result';
+
+export type StoredBotNotification = {
+  id: string;
+  userId: string;
+  kind: BotNotificationKind;
+  dedupeKey: string;
+  status: 'pending' | 'sent' | 'failed';
+  messageText: string;
+  payload: Record<string, unknown>;
+  lastError: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  sentAt: Date | null;
+};
+
+export type QueuedBotNotification = {
+  id: string;
+  telegramId: number;
+  messageText: string;
+};
+
 export type AppStore = {
   close?: () => Promise<void>;
   authenticateTelegramUser: (
@@ -150,6 +176,18 @@ export type AppStore = {
   getContributionById: (id: string) => Promise<StoredContribution | null>;
   listFeed: (args: { limit: number; cursor?: FeedCursor }) => Promise<FeedRecord[]>;
   listProjectContributorIds: (projectId: string) => Promise<string[]>;
+  setWriteAccessGranted: (userId: string, granted: boolean) => Promise<boolean>;
+  enqueueBotNotification: (args: {
+    userId: string;
+    kind: BotNotificationKind;
+    dedupeKey: string;
+    messageText: string;
+    payload: Record<string, unknown>;
+    now: Date;
+  }) => Promise<QueuedBotNotification | null>;
+  markBotNotificationSent: (notificationId: string, now: Date) => Promise<void>;
+  markBotNotificationFailed: (notificationId: string, errorMessage: string, now: Date) => Promise<void>;
+  listBotNotifications: (userId?: string) => Promise<StoredBotNotification[]>;
 };
 
 // ─── Prisma helpers ──────────────────────────────────────────────────────────
@@ -171,6 +209,24 @@ function toPublicUser(user: {
     username: user.username,
     languageCode: user.languageCode,
     photoUrl: user.photoUrl
+  };
+}
+
+function toStoredUser(user: {
+  id: string;
+  telegramId: bigint | number;
+  firstName: string;
+  lastName: string | null;
+  username: string | null;
+  languageCode: string | null;
+  photoUrl: string | null;
+  writeAccessGranted?: boolean;
+  isSeededDemo?: boolean;
+}): StoredUser {
+  return {
+    ...toPublicUser(user),
+    writeAccessGranted: user.writeAccessGranted ?? false,
+    isSeededDemo: user.isSeededDemo ?? false
   };
 }
 
@@ -303,6 +359,34 @@ function fromPrismaExamRun(run: {
   };
 }
 
+function fromPrismaBotNotification(notification: {
+  id: string;
+  userId: string;
+  kind: BotNotificationKind;
+  dedupeKey: string;
+  status: 'pending' | 'sent' | 'failed';
+  messageText: string;
+  payload: Record<string, unknown> | Prisma.JsonValue;
+  lastError: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  sentAt: Date | null;
+}): StoredBotNotification {
+  return {
+    id: notification.id,
+    userId: notification.userId,
+    kind: notification.kind,
+    dedupeKey: notification.dedupeKey,
+    status: notification.status,
+    messageText: notification.messageText,
+    payload: notification.payload as Record<string, unknown>,
+    lastError: notification.lastError,
+    createdAt: notification.createdAt,
+    updatedAt: notification.updatedAt,
+    sentAt: notification.sentAt
+  };
+}
+
 function toPartyCapacity(capacity: number): 3 | 4 | 5 {
   if (capacity === 3 || capacity === 4 || capacity === 5) {
     return capacity;
@@ -405,7 +489,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
 
     authenticateTelegramUser: async (telegramUser, now) => {
       const telegramId = BigInt(telegramUser.id);
-      const user = await prisma.user.upsert({
+      const user = await db.user.upsert({
         where: { telegramId },
         create: {
           telegramId,
@@ -413,7 +497,9 @@ export function createPrismaStore(databaseUrl: string): AppStore {
           lastName: telegramUser.last_name ?? null,
           username: telegramUser.username ?? null,
           languageCode: telegramUser.language_code ?? null,
-          photoUrl: telegramUser.photo_url ?? null
+          photoUrl: telegramUser.photo_url ?? null,
+          writeAccessGranted: false,
+          isSeededDemo: false
         },
         update: {
           firstName: telegramUser.first_name,
@@ -421,41 +507,69 @@ export function createPrismaStore(databaseUrl: string): AppStore {
           username: telegramUser.username ?? null,
           languageCode: telegramUser.language_code ?? null,
           photoUrl: telegramUser.photo_url ?? null
-        }
-      });
+        } as any
+      }) as {
+        id: string;
+        telegramId: bigint;
+        firstName: string;
+        lastName: string | null;
+        username: string | null;
+        languageCode: string | null;
+        photoUrl: string | null;
+        writeAccessGranted: boolean;
+        isSeededDemo: boolean;
+      };
 
       const existingProfile = await prisma.profile.findUnique({ where: { userId: user.id } });
 
       if (existingProfile) {
         return {
           createdProfile: false,
-          player: { user: toPublicUser(user), profile: fromPrismaProfile(existingProfile) }
+          player: { user: toStoredUser(user), profile: fromPrismaProfile(existingProfile) }
         };
       }
 
       const profile = getInitialProfile(user.id, now);
-      const createdProfile = await prisma.profile.create({
-        data: {
-          userId: profile.userId,
-          archetype: profile.archetype,
-          level: profile.level,
-          profileXp: profile.profileXp,
-          archetypeXp: profile.archetypeXp,
-          energy: profile.energy,
-          softCurrency: profile.softCurrency,
-          reputation: profile.reputation,
-          energyUpdatedAt: profile.energyUpdatedAt
-        } as any
-      });
+      try {
+        const createdProfile = await prisma.profile.create({
+          data: {
+            userId: profile.userId,
+            archetype: profile.archetype,
+            level: profile.level,
+            profileXp: profile.profileXp,
+            archetypeXp: profile.archetypeXp,
+            energy: profile.energy,
+            softCurrency: profile.softCurrency,
+            reputation: profile.reputation,
+            energyUpdatedAt: profile.energyUpdatedAt
+          } as any
+        });
 
-      await prisma.profileEvent.create({
-        data: { userId: user.id, eventType: 'profile_created', payload: { origin: 'telegram_auth' } }
-      });
+        await prisma.profileEvent.create({
+          data: { userId: user.id, eventType: 'profile_created', payload: { origin: 'telegram_auth' } }
+        });
 
-      return {
-        createdProfile: true,
-        player: { user: toPublicUser(user), profile: fromPrismaProfile(createdProfile) }
-      };
+        return {
+          createdProfile: true,
+          player: { user: toStoredUser(user), profile: fromPrismaProfile(createdProfile) }
+        };
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          'code' in error &&
+          (error as { code: string }).code === 'P2002'
+        ) {
+          const racedProfile = await prisma.profile.findUnique({ where: { userId: user.id } });
+          if (racedProfile) {
+            return {
+              createdProfile: false,
+              player: { user: toStoredUser(user), profile: fromPrismaProfile(racedProfile) }
+            };
+          }
+        }
+
+        throw error;
+      }
     },
 
     findUserById: async (userId) => {
@@ -466,7 +580,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
     findPlayerByUserId: async (userId) => {
       const profile = await prisma.profile.findUnique({ where: { userId }, include: { user: true } });
       if (!profile) return null;
-      return { user: toPublicUser(profile.user), profile: fromPrismaProfile(profile) };
+      return { user: toStoredUser(profile.user), profile: fromPrismaProfile(profile) };
     },
 
     replaceProfile: async (userId, profile, event) => {
@@ -534,6 +648,14 @@ export function createPrismaStore(databaseUrl: string): AppStore {
     listProjects: async () => {
       const projects = await db.project.findMany({ orderBy: { createdAt: 'asc' } });
       return projects.map(fromPrismaProject);
+    },
+
+    setWriteAccessGranted: async (userId, granted) => {
+      const updated = await db.user.update({
+        where: { id: userId },
+        data: { writeAccessGranted: granted } as any
+      }) as { writeAccessGranted: boolean };
+      return updated.writeAccessGranted;
     },
 
     getProjectById: async (id) => {
@@ -1184,13 +1306,13 @@ export function createPrismaStore(databaseUrl: string): AppStore {
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: limit,
         include: { profile: { include: { user: true } } }
-      }) as Array<{
+      }) as unknown as Array<{
         id: string;
         userId: string;
         createdAt: Date;
         eventType: string;
         payload: Record<string, unknown>;
-        profile: { user: { firstName: string } };
+        profile: { user: { firstName: string; isSeededDemo: boolean } };
       }>;
 
       // Batch-load projects referenced in payloads
@@ -1212,6 +1334,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
         const payload = e.payload as Record<string, unknown>;
         const userId = e.userId;
         const userFirstName = e.profile.user.firstName;
+        const origin = e.profile.user.isSeededDemo ? 'demo' : 'player';
         const projectId = payload.projectId as string | undefined;
         const projectTitle = projectId ? (projectMap.get(projectId)?.title ?? '') : '';
 
@@ -1228,6 +1351,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
               projectId,
               projectTitle,
               amount: (payload.amount as number) ?? 1,
+              origin,
               createdAt: e.createdAt.toISOString()
             }
           });
@@ -1242,6 +1366,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
               userFirstName,
               projectId,
               projectTitle,
+              origin,
               createdAt: e.createdAt.toISOString()
             }
           });
@@ -1256,6 +1381,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
               userFirstName,
               projectId,
               projectTitle,
+              origin,
               createdAt: e.createdAt.toISOString()
             }
           });
@@ -1272,6 +1398,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
                 userFirstName,
                 contributionId,
                 projectTitle,
+                origin,
                 createdAt: e.createdAt.toISOString()
               }
             });
@@ -1295,6 +1422,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
                 memberFirstNames,
                 outcome,
                 summary,
+                origin,
                 createdAt: e.createdAt.toISOString()
               }
             });
@@ -1312,6 +1440,91 @@ export function createPrismaStore(databaseUrl: string): AppStore {
         distinct: ['userId']
       });
       return contribs.map((c) => c.userId);
+    },
+
+    enqueueBotNotification: async ({ userId, kind, dedupeKey, messageText, payload, now }) => {
+      const user = await db.user.findUnique({ where: { id: userId } }) as {
+        id: string;
+        telegramId: bigint;
+        writeAccessGranted: boolean;
+        isSeededDemo: boolean;
+      } | null;
+      if (!user || user.isSeededDemo || !user.writeAccessGranted) {
+        return null;
+      }
+
+      try {
+        const notification = await db.botNotification.create({
+          data: {
+            userId,
+            kind,
+            dedupeKey,
+            status: 'pending',
+            messageText,
+            payload: toPrismaPayload(payload),
+            createdAt: now,
+            updatedAt: now
+          }
+        });
+
+        return {
+          id: notification.id,
+          telegramId: Number(user.telegramId),
+          messageText: notification.messageText
+        };
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          'code' in error &&
+          (error as { code: string }).code === 'P2002'
+        ) {
+          return null;
+        }
+        throw error;
+      }
+    },
+
+    markBotNotificationSent: async (notificationId, now) => {
+      await db.botNotification.update({
+        where: { id: notificationId },
+        data: {
+          status: 'sent',
+          sentAt: now,
+          lastError: null,
+          updatedAt: now
+        }
+      });
+    },
+
+    markBotNotificationFailed: async (notificationId, errorMessage, now) => {
+      await db.botNotification.update({
+        where: { id: notificationId },
+        data: {
+          status: 'failed',
+          lastError: errorMessage,
+          updatedAt: now
+        }
+      });
+    },
+
+    listBotNotifications: async (userId) => {
+      const notifications = await db.botNotification.findMany({
+        where: userId ? { userId } : undefined,
+        orderBy: { createdAt: 'asc' }
+      });
+      return notifications.map((notification: {
+        id: string;
+        userId: string;
+        kind: BotNotificationKind;
+        dedupeKey: string;
+        status: 'pending' | 'sent' | 'failed';
+        messageText: string;
+        payload: Prisma.JsonValue;
+        lastError: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        sentAt: Date | null;
+      }) => fromPrismaBotNotification(notification));
     }
   };
 }
@@ -1319,7 +1532,7 @@ export function createPrismaStore(databaseUrl: string): AppStore {
 // ─── In-memory store ──────────────────────────────────────────────────────────
 
 export class InMemoryAppStore implements AppStore {
-  private readonly usersById = new Map<string, PublicUser>();
+  private readonly usersById = new Map<string, StoredUser>();
   private readonly userIdsByTelegramId = new Map<number, string>();
   private readonly profilesByUserId = new Map<string, StoredProfile>();
   private readonly eventsByUserId = new Map<string, ProfileEventRecord[]>();
@@ -1331,6 +1544,7 @@ export class InMemoryAppStore implements AppStore {
   private readonly projectMutex = new Map<string, Promise<void>>();
   private readonly parties = new Map<string, StoredExamParty>();
   private readonly examRuns = new Map<string, StoredExamRun>();
+  private readonly botNotifications = new Map<string, StoredBotNotification>();
 
   private nextProject(kind: 'notes' | 'gym' | 'festival', threshold: number, affinity: 'botan' | 'sportsman' | 'partygoer'): StoredProject {
     const id = randomUUID();
@@ -1372,14 +1586,16 @@ export class InMemoryAppStore implements AppStore {
 
   async authenticateTelegramUser(telegramUser: TelegramUserPayload, now: Date) {
     const existingUserId = this.userIdsByTelegramId.get(telegramUser.id);
-    const user: PublicUser = {
+    const user: StoredUser = {
       id: existingUserId ?? randomUUID(),
       telegramId: telegramUser.id,
       firstName: telegramUser.first_name,
       lastName: telegramUser.last_name ?? null,
       username: telegramUser.username ?? null,
       languageCode: telegramUser.language_code ?? null,
-      photoUrl: telegramUser.photo_url ?? null
+      photoUrl: telegramUser.photo_url ?? null,
+      writeAccessGranted: this.usersById.get(existingUserId ?? '')?.writeAccessGranted ?? false,
+      isSeededDemo: this.usersById.get(existingUserId ?? '')?.isSeededDemo ?? false
     };
 
     this.usersById.set(user.id, user);
@@ -1398,7 +1614,8 @@ export class InMemoryAppStore implements AppStore {
   }
 
   async findUserById(userId: string) {
-    return this.usersById.get(userId) ?? null;
+    const user = this.usersById.get(userId);
+    return user ? toPublicUser(user) : null;
   }
 
   async findPlayerByUserId(userId: string) {
@@ -1429,6 +1646,16 @@ export class InMemoryAppStore implements AppStore {
 
   async listProjects() {
     return [...this.projects.values()];
+  }
+
+  async setWriteAccessGranted(userId: string, granted: boolean) {
+    const user = this.usersById.get(userId);
+    if (!user) {
+      throw new Error('USER_NOT_FOUND');
+    }
+
+    this.usersById.set(userId, { ...user, writeAccessGranted: granted });
+    return granted;
   }
 
   async getProjectById(id: string) {
@@ -1792,6 +2019,7 @@ export class InMemoryAppStore implements AppStore {
     for (const e of page) {
       const user = this.usersById.get(e.userId);
       const userFirstName = user?.firstName ?? 'Кто-то';
+      const origin = user?.isSeededDemo ? 'demo' : 'player';
       const payload = e.payload;
       const projectId = payload.projectId as string | undefined;
       const project = projectId ? this.projects.get(projectId) : undefined;
@@ -1802,19 +2030,19 @@ export class InMemoryAppStore implements AppStore {
         items.push({
           cursorId: e.id,
           createdAt: e.createdAt,
-          item: { kind: 'contribution', id: contribId, userId: e.userId, userFirstName, projectId, projectTitle, amount: (payload.amount as number) ?? 1, createdAt: e.createdAt.toISOString() }
+          item: { kind: 'contribution', id: contribId, userId: e.userId, userFirstName, projectId, projectTitle, amount: (payload.amount as number) ?? 1, origin, createdAt: e.createdAt.toISOString() }
         });
       } else if (e.eventType === 'project.unlocked' && projectId) {
         items.push({
           cursorId: e.id,
           createdAt: e.createdAt,
-          item: { kind: 'unlock', id: e.id, userId: e.userId, userFirstName, projectId, projectTitle, createdAt: e.createdAt.toISOString() }
+          item: { kind: 'unlock', id: e.id, userId: e.userId, userFirstName, projectId, projectTitle, origin, createdAt: e.createdAt.toISOString() }
         });
       } else if (e.eventType === 'benefit.claimed' && projectId) {
         items.push({
           cursorId: e.id,
           createdAt: e.createdAt,
-          item: { kind: 'benefit', id: e.id, userId: e.userId, userFirstName, projectId, projectTitle, createdAt: e.createdAt.toISOString() }
+          item: { kind: 'benefit', id: e.id, userId: e.userId, userFirstName, projectId, projectTitle, origin, createdAt: e.createdAt.toISOString() }
         });
       } else if (e.eventType === 'contribution.liked') {
         const contributionId = payload.contributionId as string | undefined;
@@ -1822,7 +2050,7 @@ export class InMemoryAppStore implements AppStore {
           items.push({
             cursorId: e.id,
             createdAt: e.createdAt,
-            item: { kind: 'like', id: e.id, userId: e.userId, userFirstName, contributionId, projectTitle, createdAt: e.createdAt.toISOString() }
+            item: { kind: 'like', id: e.id, userId: e.userId, userFirstName, contributionId, projectTitle, origin, createdAt: e.createdAt.toISOString() }
           });
         }
       } else if (e.eventType === 'exam.completed') {
@@ -1835,7 +2063,7 @@ export class InMemoryAppStore implements AppStore {
           items.push({
             cursorId: e.id,
             createdAt: e.createdAt,
-            item: { kind: 'exam_result', id: e.id, examRunId, partyId, ownerFirstName: userFirstName, memberFirstNames, outcome, summary, createdAt: e.createdAt.toISOString() }
+            item: { kind: 'exam_result', id: e.id, examRunId, partyId, ownerFirstName: userFirstName, memberFirstNames, outcome, summary, origin, createdAt: e.createdAt.toISOString() }
           });
         }
       }
@@ -1848,6 +2076,81 @@ export class InMemoryAppStore implements AppStore {
     return [...new Set(
       [...this.contributions.values()].filter((c) => c.projectId === projectId).map((c) => c.userId)
     )];
+  }
+
+  async enqueueBotNotification(args: {
+    userId: string;
+    kind: BotNotificationKind;
+    dedupeKey: string;
+    messageText: string;
+    payload: Record<string, unknown>;
+    now: Date;
+  }) {
+    const user = this.usersById.get(args.userId);
+    if (!user || user.isSeededDemo || !user.writeAccessGranted) {
+      return null;
+    }
+
+    const existing = [...this.botNotifications.values()].find((notification) => notification.dedupeKey === args.dedupeKey);
+    if (existing) {
+      return null;
+    }
+
+    const notification: StoredBotNotification = {
+      id: randomUUID(),
+      userId: args.userId,
+      kind: args.kind,
+      dedupeKey: args.dedupeKey,
+      status: 'pending',
+      messageText: args.messageText,
+      payload: args.payload,
+      lastError: null,
+      createdAt: args.now,
+      updatedAt: args.now,
+      sentAt: null
+    };
+    this.botNotifications.set(notification.id, notification);
+
+    return {
+      id: notification.id,
+      telegramId: user.telegramId,
+      messageText: notification.messageText
+    };
+  }
+
+  async markBotNotificationSent(notificationId: string, now: Date) {
+    const notification = this.botNotifications.get(notificationId);
+    if (!notification) {
+      return;
+    }
+
+    this.botNotifications.set(notificationId, {
+      ...notification,
+      status: 'sent',
+      sentAt: now,
+      lastError: null,
+      updatedAt: now
+    });
+  }
+
+  async markBotNotificationFailed(notificationId: string, errorMessage: string, now: Date) {
+    const notification = this.botNotifications.get(notificationId);
+    if (!notification) {
+      return;
+    }
+
+    this.botNotifications.set(notificationId, {
+      ...notification,
+      status: 'failed',
+      lastError: errorMessage,
+      updatedAt: now
+    });
+  }
+
+  async listBotNotifications(userId?: string) {
+    return [...this.botNotifications.values()]
+      .filter((notification) => !userId || notification.userId === userId)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
   }
 
   private findActivePartyForUser(userId: string) {

@@ -4,11 +4,13 @@ import {
   contributeRequestSchema,
   queueForExamRequestSchema,
   performActionRequestSchema,
+  setWriteAccessRequestSchema,
   setPartyReadyRequestSchema,
   selectArchetypeRequestSchema,
   type ActionId,
   type ApiError,
-  type Archetype
+  type Archetype,
+  type PublicUser
 } from '@sharaga/contracts';
 
 import { validateTelegramInitData } from './auth.js';
@@ -26,15 +28,17 @@ import {
   computeContributionReward,
   CONTRIBUTE_ENERGY_COST
 } from './social.js';
+import { createTelegramMessageSender, type TelegramMessageSender } from './notifications.js';
 import type { StoredExamParty } from './exam.js';
 import { createPrismaStore, type AppStore, type FeedCursor, type StoredExamRun } from './store.js';
 
 type ErrorResponse = ApiError;
 
-export type User = StoredPlayer['user'];
+export type User = PublicUser;
 
 type AppConfig = {
   telegramBotToken: string;
+  telegramBotApiBaseUrl?: string;
   jwtSecret: string;
   jwtExpiresIn: string;
   databaseUrl: string;
@@ -52,6 +56,7 @@ function getRequiredEnv(name: string): string {
 export function getAppConfig(): AppConfig {
   return {
     telegramBotToken: getRequiredEnv('TELEGRAM_BOT_TOKEN'),
+    telegramBotApiBaseUrl: process.env.TELEGRAM_BOT_API_BASE_URL ?? 'https://api.telegram.org',
     jwtSecret: getRequiredEnv('JWT_SECRET'),
     jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1d',
     databaseUrl: getRequiredEnv('DATABASE_URL')
@@ -61,6 +66,7 @@ export function getAppConfig(): AppConfig {
 type BuildAppDependencies = {
   store?: AppStore;
   now?: () => Date;
+  sendTelegramMessage?: TelegramMessageSender;
 };
 
 function getErrorResponse(code: string, message: string, details?: unknown): ErrorResponse {
@@ -147,6 +153,9 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
   const app = Fastify({ logger: true });
   const store = dependencies.store ?? createPrismaStore(config.databaseUrl);
   const now = dependencies.now ?? (() => new Date());
+  const sendTelegramMessage =
+    dependencies.sendTelegramMessage
+    ?? createTelegramMessageSender(config.telegramBotToken, { apiBaseUrl: config.telegramBotApiBaseUrl });
 
   function getUnauthorizedResponse() {
     return getErrorResponse('UNAUTHORIZED', 'Токен авторизации отсутствует или недействителен');
@@ -179,7 +188,46 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
     return user;
   }
 
-  app.setErrorHandler((error, _request, reply) => {
+  async function dispatchBotNotification(args: {
+    userId: string;
+    kind: 'write_access_confirmed' | 'social_payoff' | 'exam_update' | 'exam_result';
+    dedupeKey: string;
+    messageText: string;
+    payload: Record<string, unknown>;
+  }) {
+    const queued = await store.enqueueBotNotification({
+      ...args,
+      now: now()
+    });
+
+    if (!queued) {
+      return false;
+    }
+
+    try {
+      await sendTelegramMessage({ chatId: queued.telegramId, text: queued.messageText });
+      await store.markBotNotificationSent(queued.id, now());
+      return true;
+    } catch (error) {
+      app.log.warn(
+        {
+          err: error,
+          userId: args.userId,
+          kind: args.kind,
+          dedupeKey: args.dedupeKey
+        },
+        'Telegram notification delivery failed'
+      );
+      await store.markBotNotificationFailed(
+        queued.id,
+        error instanceof Error ? error.message : 'TELEGRAM_SEND_FAILED',
+        now()
+      );
+      return false;
+    }
+  }
+
+  app.setErrorHandler((error, request, reply) => {
     const maybeValidation =
       typeof error === 'object' && error !== null && 'validation' in error
         ? (error as { validation?: unknown }).validation
@@ -191,9 +239,11 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
         .send(getErrorResponse('INVALID_REQUEST', 'Некорректные данные запроса', maybeValidation));
     }
 
-    const message = error instanceof Error ? error.message : 'Произошла непредвиденная ошибка';
+    request.log.error({ err: error }, 'Unhandled application error');
 
-    return reply.status(500).send(getErrorResponse('INTERNAL_SERVER_ERROR', message));
+    return reply
+      .status(500)
+      .send(getErrorResponse('INTERNAL_SERVER_ERROR', 'Сервис временно недоступен. Попробуй еще раз позже.'));
   });
 
   app.addHook('onClose', async () => {
@@ -228,7 +278,18 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
       config.jwtExpiresIn
     );
 
-    return { accessToken, user: authResult.player.user };
+    return {
+      accessToken,
+      user: {
+        id: authResult.player.user.id,
+        telegramId: authResult.player.user.telegramId,
+        firstName: authResult.player.user.firstName,
+        lastName: authResult.player.user.lastName,
+        username: authResult.player.user.username,
+        languageCode: authResult.player.user.languageCode,
+        photoUrl: authResult.player.user.photoUrl
+      }
+    };
   });
 
   app.get('/api/v1/me', async (request, reply) => {
@@ -259,6 +320,36 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
     }
 
     return buildProfileResponse(player, currentTime);
+  });
+
+  app.post('/api/v1/notifications/write-access', async (request, reply) => {
+    const user = await authorizeRequest(request, reply);
+    if (!user) {
+      return;
+    }
+
+    const parsed = setWriteAccessRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply
+        .status(400)
+        .send(getErrorResponse('INVALID_REQUEST', 'Статус доступа к уведомлениям указан некорректно', parsed.error.flatten()));
+    }
+
+    const writeAccessGranted = await store.setWriteAccessGranted(user.id, parsed.data.granted);
+
+    if (writeAccessGranted) {
+      await dispatchBotNotification({
+        userId: user.id,
+        kind: 'write_access_confirmed',
+        dedupeKey: `write-access:${user.id}`,
+        messageText: 'Уведомления включены. Теперь мы мягко маякнем, когда твой вклад кому-то помог или когда экзамен уже зовет обратно.',
+        payload: {
+          type: 'write_access_granted'
+        }
+      });
+    }
+
+    return { writeAccessGranted };
   });
 
   app.post('/api/v1/class/select', async (request, reply) => {
@@ -547,6 +638,23 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
         now: currentTime
       });
 
+      await Promise.all(
+        contributorIds.map((contributorId) =>
+          dispatchBotNotification({
+            userId: contributorId,
+            kind: 'social_payoff',
+            dedupeKey: `social-benefit:${result.claim.id}:${contributorId}`,
+            messageText: `${user.firstName} забрал бонус из «${project.title}». Твой вклад в проект реально сработал и уже помог другому человеку.`,
+            payload: {
+              type: 'benefit_claimed',
+              projectId,
+              claimId: result.claim.id,
+              claimedByUserId: user.id
+            }
+          })
+        )
+      );
+
       return {
         profile: {
           userId: result.profile.userId,
@@ -595,12 +703,25 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
     }
 
     const currentTime = now();
+    const project = await store.getProjectById(contribution.projectId);
 
     try {
       const result = await store.likeContribution({
         contributionId,
         fromUserId: user.id,
         now: currentTime
+      });
+
+      await dispatchBotNotification({
+        userId: result.toUserId,
+        kind: 'social_payoff',
+        dedupeKey: `social-like:${contributionId}:${user.id}:${result.toUserId}`,
+        messageText: `${user.firstName} сказал спасибо за твой вклад${project ? ` в «${project.title}»` : ''}. Социальный след уже виден не только в ленте.`,
+        payload: {
+          type: 'contribution_liked',
+          contributionId,
+          fromUserId: user.id
+        }
       });
 
       return {
@@ -642,6 +763,25 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
 
     try {
       const party = await store.queueForExam({ userId: user.id, capacity: parsed.data.capacity, now: now() });
+
+      if (party.status === 'ready_check') {
+        await Promise.all(
+          party.members.map((member) =>
+            dispatchBotNotification({
+              userId: member.userId,
+              kind: 'exam_update',
+              dedupeKey: `exam-ready:${party.id}:${member.userId}`,
+              messageText: `Пати на экзамен уже собрана. Залетай в мини-апп и отмечай готовность, чтобы стартануть без лишних созвонов.`,
+              payload: {
+                type: 'ready_check',
+                partyId: party.id,
+                capacity: party.capacity
+              }
+            })
+          )
+        );
+      }
+
       return { party: toPartyResponse(party) };
     } catch (error) {
       if (error instanceof Error && error.message === 'ARCHETYPE_REQUIRED') {
@@ -670,6 +810,28 @@ export function buildApp(config: AppConfig, dependencies: BuildAppDependencies =
         ready: parsed.data.ready,
         now: now()
       });
+
+      if (result.run) {
+        await Promise.all(
+          result.run.rewards.map((reward) =>
+            dispatchBotNotification({
+              userId: reward.userId,
+              kind: 'exam_result',
+              dedupeKey: `exam-result:${result.run!.id}:${reward.userId}`,
+              messageText:
+                result.run!.outcome === 'success'
+                  ? `Экзамен закрыт на успех. ${result.run!.summary}`
+                  : `Экзамен закрыт с частичным вывозом. ${result.run!.summary}`,
+              payload: {
+                type: 'exam_result',
+                examRunId: result.run!.id,
+                partyId: result.run!.partyId,
+                outcome: result.run!.outcome
+              }
+            })
+          )
+        );
+      }
 
       return {
         party: result.party ? toPartyResponse(result.party) : null,

@@ -6,12 +6,14 @@ export const projectKinds = ['notes', 'gym', 'festival'] as const;
 export const partyStatuses = ['queueing', 'ready_check', 'completed', 'cancelled'] as const;
 export const examOutcomes = ['success', 'partial_failure'] as const;
 export const partyCapacities = [3, 4, 5] as const;
+export const feedOrigins = ['player', 'demo'] as const;
 
 export const archetypeSchema = z.enum(archetypes);
 export const actionIdSchema = z.enum(actionIds);
 export const projectKindSchema = z.enum(projectKinds);
 export const partyStatusSchema = z.enum(partyStatuses);
 export const examOutcomeSchema = z.enum(examOutcomes);
+export const feedOriginSchema = z.enum(feedOrigins);
 export const partyCapacitySchema = z.union([
   z.literal(3),
   z.literal(4),
@@ -23,6 +25,7 @@ export type ActionId = z.infer<typeof actionIdSchema>;
 export type ProjectKind = z.infer<typeof projectKindSchema>;
 export type PartyStatus = z.infer<typeof partyStatusSchema>;
 export type ExamOutcome = z.infer<typeof examOutcomeSchema>;
+export type FeedOrigin = z.infer<typeof feedOriginSchema>;
 export type PartyCapacity = z.infer<typeof partyCapacitySchema>;
 
 export type ActionCatalogEntry = {
@@ -94,6 +97,7 @@ export const profileSnapshotSchema = z.object({
 export const profileResponseSchema = z.object({
   user: publicUserSchema,
   profile: profileSnapshotSchema,
+  writeAccessGranted: z.boolean(),
   serverTime: z.string().datetime(),
   nextEnergyAt: z.string().datetime().nullable()
 });
@@ -233,6 +237,14 @@ export const leavePartyResponseSchema = z.object({
   party: examPartySchema.nullable()
 });
 
+export const setWriteAccessRequestSchema = z.object({
+  granted: z.boolean()
+});
+
+export const setWriteAccessResponseSchema = z.object({
+  writeAccessGranted: z.boolean()
+});
+
 export const feedItemSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('contribution'),
@@ -242,6 +254,7 @@ export const feedItemSchema = z.discriminatedUnion('kind', [
     projectId: z.string().uuid(),
     projectTitle: z.string(),
     amount: z.number().int(),
+    origin: feedOriginSchema,
     createdAt: z.string().datetime()
   }),
   z.object({
@@ -251,6 +264,7 @@ export const feedItemSchema = z.discriminatedUnion('kind', [
     userFirstName: z.string(),
     projectId: z.string().uuid(),
     projectTitle: z.string(),
+    origin: feedOriginSchema,
     createdAt: z.string().datetime()
   }),
   z.object({
@@ -260,6 +274,7 @@ export const feedItemSchema = z.discriminatedUnion('kind', [
     userFirstName: z.string(),
     projectId: z.string().uuid(),
     projectTitle: z.string(),
+    origin: feedOriginSchema,
     createdAt: z.string().datetime()
   }),
   z.object({
@@ -269,6 +284,7 @@ export const feedItemSchema = z.discriminatedUnion('kind', [
     userFirstName: z.string(),
     contributionId: z.string().uuid(),
     projectTitle: z.string(),
+    origin: feedOriginSchema,
     createdAt: z.string().datetime()
   }),
   z.object({
@@ -280,6 +296,7 @@ export const feedItemSchema = z.discriminatedUnion('kind', [
     memberFirstNames: z.array(z.string()).min(1),
     outcome: examOutcomeSchema,
     summary: z.string(),
+    origin: feedOriginSchema,
     createdAt: z.string().datetime()
   })
 ]);
@@ -350,3 +367,5 @@ export type QueueForExamResponse = z.infer<typeof queueForExamResponseSchema>;
 export type SetPartyReadyRequest = z.infer<typeof setPartyReadyRequestSchema>;
 export type SetPartyReadyResponse = z.infer<typeof setPartyReadyResponseSchema>;
 export type LeavePartyResponse = z.infer<typeof leavePartyResponseSchema>;
+export type SetWriteAccessRequest = z.infer<typeof setWriteAccessRequestSchema>;
+export type SetWriteAccessResponse = z.infer<typeof setWriteAccessResponseSchema>;

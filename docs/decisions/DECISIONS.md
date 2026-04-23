@@ -152,3 +152,22 @@ Consequences:
 - API gains `/api/v1/exam`, `/api/v1/parties/queue`, `/api/v1/parties/:id/ready`, and `/api/v1/parties/:id/leave`.
 - Web gains a new `Экзамен` tab and queue/ready/result states.
 - Manual invite flows and public party browsing stay out of scope for BUILD-P3.
+
+## 2026-04-22 - BUILD-P4 stores notification consent and explicit demo-world provenance
+
+Decision: persist Telegram write-access consent on `User`, store bot-delivery attempts in first-class `BotNotification` rows with unique `dedupeKey`, and mark demo actors/feed items explicitly instead of letting seed content look like live player activity.
+
+Rationale:
+
+- Alpha hardening needs notification delivery to be best-effort, auditable, and idempotent across retries or repeated requests.
+- `writeAccessGranted` must survive reload/login so the Mini App can ask only after first value and avoid prompting already-consented users.
+- Seed content should make the world feel populated without deceiving the player about what is demo/system activity.
+- Local/browser smoke needs a reproducible notification path, so the Telegram sender now supports a configurable API base URL and short timeout instead of depending on the public Telegram edge in every run.
+
+Consequences:
+
+- `User` now stores `writeAccessGranted` and `isSeededDemo`.
+- Prisma gains `BotNotification` plus `BotNotificationKind` and `BotNotificationStatus`.
+- `GET /api/v1/profile` includes `writeAccessGranted`, and `POST /api/v1/notifications/write-access` persists the consent state.
+- Feed DTOs include `origin: 'player' | 'demo'`, and demo items are labeled in the UI.
+- Local smoke/e2e can point notification delivery at a local stub through `TELEGRAM_BOT_API_BASE_URL`.
