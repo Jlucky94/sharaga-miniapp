@@ -31,6 +31,7 @@ export function ExamScreen({ accessToken, onProfileUpdate }: ExamScreenProps) {
       setState(next);
       setErrorMessage(null);
       readyValueRef.current = Boolean(next.party?.members.find((member) => member.isCurrentUser)?.readyAt);
+      return next;
     } finally {
       setLoading(false);
     }
@@ -70,6 +71,11 @@ export function ExamScreen({ accessToken, onProfileUpdate }: ExamScreenProps) {
       readyValueRef.current = ready;
       if (result.run) {
         await onProfileUpdate();
+      } else if (ready) {
+        const refreshed = await load();
+        if (refreshed.latestRun) {
+          await onProfileUpdate();
+        }
       }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось обновить готовность');
